@@ -28,7 +28,6 @@ export class ExportService {
    */
   async exportBacklog(exportDto: ExportBacklogDto) {
     this.logger.log('Iniciando exportación de backlog...');
-    console.log('1 exportBacklog');
 
     try {
       // Obtener todas las tareas de la base de datos
@@ -38,7 +37,6 @@ export class ExportService {
         .exec();
 
       this.logger.log(`Se encontraron ${tasks.length} tareas para exportar`);
-      console.log(`2 Se encontraron ${tasks.length} tareas para exportar`);
       // Formatear las tareas para el CSV
       const formattedTasks = tasks.map((task) => ({
         id: String(task._id),
@@ -47,7 +45,6 @@ export class ExportService {
         column: task.column,
         fecha_creacion: task.createdAt,
       }));
-      console.log('3 formattedTasks', formattedTasks);
       // Preparar payload para n8n
       const payload = {
         tasks: formattedTasks,
@@ -55,13 +52,11 @@ export class ExportService {
         timestamp: new Date().toISOString(),
         totalTasks: tasks.length,
       };
-      console.log('4 payload', payload);
       // Disparar webhook de n8n
       this.logger.log(`Disparando webhook n8n: ${this.n8nWebhookUrl}`);
       const response = await firstValueFrom(
         this.httpService.post(this.n8nWebhookUrl, payload),
       );
-      console.log('5 response.data', response.data);
       this.logger.log('Webhook n8n ejecutado exitosamente');
 
       return {

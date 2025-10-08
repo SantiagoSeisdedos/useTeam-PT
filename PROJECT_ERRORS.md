@@ -1,137 +1,301 @@
-# PROJECT_ERRORS.md
+# 🐛 Errores y Soluciones - Kanban Board
 
-## 🧩 Propósito
-
-Este documento recopila los errores, problemas y bloqueos técnicos encontrados durante el desarrollo del proyecto **useTeam - Kanban AI Export**, así como las soluciones aplicadas.  
-La idea es mantener un registro útil para:
-
-- Entender decisiones técnicas tomadas.
-- Evitar repetir errores.
-- Ayudar a otros desarrolladores a resolver los mismos problemas.
-- Mostrar trazabilidad y razonamiento técnico ante revisores del challenge.
+Este documento recopila los **errores técnicos más relevantes** encontrados durante el desarrollo y sus soluciones aplicadas.
 
 ---
 
-## 🧱 Contexto del entorno
+## ⚠️ **Error #1: `options.attachments.split is not a function` (n8n)**
 
-- **Herramienta de automatización:** n8n (Docker)
-- **IA usada:** OpenAI (GPT-3.5-turbo)
-- **Envío de correos:** Mailtrap (SMTP sandbox)
-- **Datos:** JSON → CSV → Email
-- **Flujo:** Webhook → Code → Convert to CSV → Message a Model → Merge → Send Email
+### **Contexto:**
 
----
+Error al enviar email con adjunto CSV en el nodo "Send Email" de n8n.
 
-## ⚠️ Error #1 — `options.attachments.split is not a function`
+### **Causa:**
 
-### 🧾 Descripción
+El campo `Attachments` espera una lista de nombres (string), no un objeto binario completo.
 
-Durante el envío de correos con el nodo **Send Email**, al intentar adjuntar un archivo binario (`{{ $binary }}` o `{{ $binary.data }}`), se obtuvo el siguiente error: `NodeApiError: options.attachments.split is not a function`
+### **Solución:**
 
-### 🎯 Causa raíz
-
-El campo `Attachments` del nodo espera **una lista separada por comas (string)**, no un objeto binario.  
-n8n internamente usa `.split(',')` sobre el valor recibido, por lo tanto, pasar un objeto (`$binary`) produce el error.
-
-### 🧩 Solución aplicada
-
-Se pasó **el nombre del campo binario** como string dinámico en lugar del objeto completo:
+Pasar el nombre del campo binario en lugar del objeto:
 
 ```handlebars
 {{ Object.keys($binary)[0].trim() }}
 ```
 
-Esto indica a n8n que use el archivo binario actualmente almacenado bajo esa key (por ejemplo data, file, etc.).
+### **Resultado:** ✅
 
-### ✅ Resultado
-
-Correo enviado correctamente con CSV adjunto (kanban-backlog.csv) y cuerpo del mensaje con resumen IA.
+Email enviado correctamente con CSV adjunto.
 
 ---
 
-## ⚠️ Error #2 — Desincronización entre ramas (Merge Node)
+## ⚠️ **Error #2: Desincronización en Merge Node (n8n)**
 
-### 🧾 Descripción
+### **Contexto:**
 
-Al **unir** las dos ramas del flujo (CSV y resumen IA) con el **nodo Merge**, el email a veces llegaba sin adjunto o sin resumen.
+Email llegaba sin adjunto o sin resumen al combinar ramas A y B.
 
-### 🎯 Causa raíz
+### **Causa:**
 
-El nodo **Merge** combinaba los outputs sin esperar que ambos procesos terminaran, provocando **condiciones de carrera** (race conditions).
-Esto pasaba especialmente cuando el Message a Model (LLM) demoraba más en responder que la conversión a CSV.
+Race condition - el nodo Merge no esperaba que ambas ramas terminaran.
 
-### 🧩 Solución aplicada
+### **Solución:**
 
-- Se cambió el modo del nodo Merge a “Wait” (esperar ambos inputs).
-- Luego, se añadió un nodo Code que unifica los datos en un solo item, combinando:
-  - binary del CSV (rama A)
-  - json con mensaje IA (rama B)
+- Configurar Merge en modo "Wait"
+- Agregar nodo Code para unificar items:
 
 ```javascript
 return [
   {
-    json: {
-      message: $items("Message a Model")[0].json.message,
-    },
+    json: { message: $items("Message a Model")[0].json.message },
     binary: $items("Convert to File")[0].binary,
   },
 ];
 ```
 
-### ✅ Resultado
+### **Resultado:** ✅
 
-Sincronización garantizada → el email se envía con ambas partes completas.
+Sincronización garantizada en todas las ejecuciones.
 
 ---
 
-# ⚠️ Error #3 — CSV no reconocible en Google Sheets
+## ⚠️ **Error #3: `Cannot read properties of undefined (reading 'map')` (n8n)**
 
-### 🧾 Descripción
+### **Contexto:**
 
-En pruebas iniciales, el CSV generado abría mal en Google Sheets (campos en una sola columna).
+Nodo Code fallaba al intentar mapear `payload.tasks`.
 
-### 🎯 Causa raíz
+### **Causa:**
 
-El separador por defecto usado por n8n (; o \t) no siempre es compatible con Google Sheets (espera ,).
-
-### 🧩 Solución aplicada
-
-En el nodo Convert to File, se forzó la opción: `Delimiter: ,`
-
-### ✅ Resultado
-El CSV abre correctamente en Google Sheets y mantiene columnas separadas.
-
-
-# ⚠️ Error #4 — Mock data no compatible con Convert to CSV
-### 🧾 Descripción
-
-El nodo Code inicial devolvía un objeto { data: [...] }, que el nodo Convert to File no reconocía como array plano.
-
-### 🎯 Causa raíz
-
-El nodo Convert to File (modo CSV) espera un array en la raíz (items[]), no anidado dentro de un campo data.
-
-### 🧩 Solución aplicada
-
-Se modificó el Code para retornar directamente un array plano:
+El payload del webhook venía en `body`, no en raíz:
 
 ```javascript
-return [
-  { json: { id: 1, title: 'Configurar entorno', column: 'To Do' } },
-  { json: { id: 2, title: 'Diseñar modelo', column: 'In Progress' } },
-  { json: { id: 3, title: 'Implementar drag & drop', column: 'Done' } }
-];
+// ❌ Incorrecto
+const payload = $json;
+payload.tasks.map(...) // ERROR
+
+// ✅ Correcto
+const payload = $json.body;
+payload.tasks.map(...) // OK
 ```
 
-### ✅ Resultado
-CSV generado correctamente.
+### **Solución:**
 
-### 🚀 Mejores prácticas aprendidas
+Extraer datos de `$json.body` en lugar de `$json`.
 
-- Usar Merge (Wait) siempre cuando hay ramas con tiempos diferentes.
-- No pasar objetos binarios completos en nodos que esperan texto.
-- Validar formato CSV antes de enviar por email.
-- Documentar cada ajuste técnico y exportar el workflow (workflow.json).
-- Nombrar nodos descriptivamente (evita confusión en merges grandes).
-- Hacer pruebas con Mailtrap antes de SMTP real.
-- Verificar credenciales OpenAI antes de ejecutar workflow completo.
+### **Resultado:** ✅
+
+Workflow ejecutándose correctamente.
+
+---
+
+## ⚠️ **Error #4: TypeScript - `'_id' is of type 'unknown'` (Backend)**
+
+### **Contexto:**
+
+Error al intentar `task._id.toString()` en el servicio de export.
+
+### **Causa:**
+
+Mongoose retorna `_id` como tipo `unknown` en algunos contextos.
+
+### **Solución:**
+
+Cast a `any` o usar `String()`:
+
+```typescript
+// Opción 1
+id: (task._id as any).toString();
+
+// Opción 2 (mejor)
+id: String(task._id);
+```
+
+### **Resultado:** ✅
+
+TypeScript compila sin errores.
+
+---
+
+## ⚠️ **Error #5: Mongoose - `CannotDetermineTypeError` para campo `color`**
+
+### **Contexto:**
+
+Error al agregar campo `color: string | null` al schema de Task.
+
+### **Causa:**
+
+Mongoose no puede inferir tipos de uniones (`string | null`) automáticamente.
+
+### **Solución:**
+
+Especificar tipo explícitamente:
+
+```typescript
+// ❌ Incorrecto
+@Prop({ default: null })
+color: string | null;
+
+// ✅ Correcto
+@Prop({ type: String, default: null })
+color: string | null;
+```
+
+### **Resultado:** ✅
+
+Schema compilado correctamente.
+
+---
+
+## ⚠️ **Error #6: WebSocket - Contador de usuarios no actualiza**
+
+### **Contexto:**
+
+Contador de usuarios conectados mostraba siempre 0.
+
+### **Causa:**
+
+Gateway solo emitía eventos `user-connected/disconnected` sin enviar el conteo real.
+
+### **Solución:**
+
+Enviar conteo en los eventos:
+
+```typescript
+// En handleConnection
+client.emit("connected-users-count", {
+  count: this.server.sockets.sockets.size,
+});
+
+// En handleDisconnect
+this.server.emit("user-disconnected", {
+  count: this.server.sockets.sockets.size,
+});
+```
+
+### **Resultado:** ✅
+
+Contador actualiza correctamente en tiempo real.
+
+---
+
+## ⚠️ **Error #7: CRLF vs LF en archivos (Prettier)**
+
+### **Contexto:**
+
+Prettier fallaba por inconsistencia de line endings en Windows.
+
+### **Causa:**
+
+Git configurado para CRLF en Windows, pero Prettier esperaba LF.
+
+### **Solución:**
+
+Ejecutar Prettier para normalizar:
+
+```bash
+npm run format
+```
+
+Configurar `.prettierrc`:
+
+```json
+{
+  "endOfLine": "auto"
+}
+```
+
+### **Resultado:** ✅
+
+Código formateado consistentemente.
+
+---
+
+## ⚠️ **Error #8: n8n - Split Out node sin output**
+
+### **Contexto:**
+
+Nodo "Split Out" bloqueaba el flujo sin generar output.
+
+### **Causa:**
+
+Buscaba campo `data` que no existía en los items recibidos.
+
+### **Solución:**
+
+Opción 1: Eliminar el nodo (no necesario)  
+Opción 2: Cambiar "Fields To Split Out" a campo existente (ej: `title`)
+
+### **Resultado:** ✅
+
+Flujo ejecutándose completamente.
+
+---
+
+## 🚀 **Mejores Prácticas Aprendidas**
+
+### **n8n**
+
+- ✅ Usar Merge en modo "Wait" para ramas asíncronas
+- ✅ Acceder a datos del webhook en `$json.body`
+- ✅ Pasar nombres de campos binarios, no objetos completos
+- ✅ Validar estructura de datos en Code nodes
+- ✅ Revisar logs en "Executions" para debugging
+
+### **Backend (NestJS)**
+
+- ✅ Especificar tipos explícitos en decoradores Mongoose
+- ✅ Cast `_id` para evitar errores de tipo `unknown`
+- ✅ Usar `class-validator` para validación de DTOs
+- ✅ Formatear código con Prettier regularmente
+- ✅ Configurar CORS correctamente para frontend
+
+### **Frontend (React)**
+
+- ✅ Crear servicios singleton para API, WebSocket y Audio
+- ✅ Usar `type` keyword para imports de tipos
+- ✅ Manejar estados de loading y error
+- ✅ Implementar optimistic updates para mejor UX
+- ✅ Separar lógica de UI en componentes pequeños
+
+### **WebSocket**
+
+- ✅ Emitir eventos solo a otros usuarios (`broadcast`)
+- ✅ Enviar metadata (userId, timestamp) en eventos
+- ✅ Re-registrar listeners después de reconexión
+- ✅ Manejar desconexiones gracefully
+
+---
+
+## 📊 **Impacto de los Errores**
+
+| Error              | Tiempo Perdido | Criticidad | Solución          |
+| ------------------ | -------------- | ---------- | ----------------- |
+| #1 n8n attachments | ~30 min        | Alta       | Documentación n8n |
+| #2 Merge sync      | ~45 min        | Alta       | Code node         |
+| #3 n8n payload     | ~15 min        | Media      | Debug logs        |
+| #4 TypeScript \_id | ~20 min        | Media      | Cast to any       |
+| #5 Mongoose union  | ~10 min        | Baja       | Type explicit     |
+| #6 WS counter      | ~25 min        | Media      | Emit count        |
+| #7 CRLF/LF         | ~5 min         | Baja       | Prettier          |
+| #8 Split Out       | ~10 min        | Media      | Update field      |
+
+**Total tiempo en debugging:** ~3 horas  
+**Total tiempo de desarrollo:** ~16 horas
+
+---
+
+## 💡 **Conclusiones**
+
+Los errores encontrados fueron mayormente de:
+
+1. **Integración** (n8n ↔ backend)
+2. **Tipos** (TypeScript estricto)
+3. **Sincronización** (WebSocket)
+
+Todos fueron resueltos con:
+
+- ✅ Lectura de documentación oficial
+- ✅ Debugging con logs
+- ✅ Testing incremental
+
+---

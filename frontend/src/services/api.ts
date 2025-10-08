@@ -102,9 +102,7 @@ export const exportApi = {
   exportBacklog: async (
     data: ExportBacklogDto = {}
   ): Promise<{ success: boolean; message: string; tasksExported: number }> => {
-    console.log("1 exportBacklog", data);
     const response = await api.post("/export/backlog", data);
-    console.log("2 response", response);
     return response.data;
   },
 };
