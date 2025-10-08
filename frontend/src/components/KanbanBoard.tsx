@@ -13,12 +13,14 @@ import { KanbanColumn } from "./KanbanColumn";
 import { TaskCard } from "./TaskCard";
 import { TaskDialog } from "./TaskDialog";
 import { ExportButton } from "./ExportButton";
+import { AudioSettings } from "./AudioSettings";
 import { Button } from "./ui/button";
 import { Card, CardContent } from "./ui/card";
 import { Input } from "./ui/input";
 import { Loader2, RefreshCw, Users, Plus, Check, X } from "lucide-react";
 import { tasksApi, boardsApi } from "../services/api";
 import { socketService } from "../services/socket";
+import { audioService } from "../services/audio";
 import { toast } from "sonner";
 import type { Task } from "../types";
 
@@ -57,6 +59,7 @@ export function KanbanBoard() {
       toast.info("Nueva tarea creada", {
         description: `${task.title} fue creada por otro usuario`,
       });
+      audioService.play('notification'); // Sonido de notificación
       setTasks((prev) => [...prev, task]);
     });
 
@@ -101,6 +104,7 @@ export function KanbanBoard() {
       toast.info("Nueva columna agregada", {
         description: `"${data.columnName}" fue creada por otro usuario`,
       });
+      audioService.play('notification'); // Sonido de notificación
     });
 
     socketService.onColumnRenamed((data) => {
@@ -290,6 +294,7 @@ export function KanbanBoard() {
         });
         setTasks((prev) => [...prev, newTask]);
         socketService.emitTaskCreated(newTask);
+        audioService.play('task'); // Sonido al crear tarea
         toast.success("Tarea creada");
       }
       setDialogOpen(false);
@@ -306,6 +311,7 @@ export function KanbanBoard() {
       await tasksApi.delete(taskId);
       setTasks((prev) => prev.filter((task) => task._id !== taskId));
       socketService.emitTaskDeleted(taskId);
+      audioService.play('delete'); // Sonido al eliminar
       toast.success("Tarea eliminada");
     } catch (error) {
       console.error("Error eliminando tarea:", error);
@@ -344,6 +350,7 @@ export function KanbanBoard() {
       setNewColumnName("");
       setIsAddingColumn(false);
       socketService.emitColumnAdded(newColumnName.trim(), updatedBoard.columns);
+      audioService.play('column'); // Sonido al crear columna
       toast.success("Columna creada exitosamente");
     } catch (error) {
       console.error("Error agregando columna:", error);
@@ -403,6 +410,7 @@ export function KanbanBoard() {
       setTasks((prev) => prev.filter((task) => task.column !== columnName));
 
       socketService.emitColumnDeleted(columnName, updatedBoard.columns);
+      audioService.play('delete'); // Sonido al eliminar
       toast.success(`Columna "${columnName}" eliminada`);
     } catch (error) {
       console.error("Error eliminando columna:", error);
@@ -444,6 +452,7 @@ export function KanbanBoard() {
                   <span>{connectedUsers} conectado(s)</span>
                 </div>
               )}
+              <AudioSettings />
               <Button variant="outline" size="icon" onClick={loadTasks}>
                 <RefreshCw className="h-4 w-4" />
               </Button>

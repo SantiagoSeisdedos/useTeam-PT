@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Button } from "./ui/button";
 import { Download, Loader2, Mail } from "lucide-react";
 import { exportApi } from "../services/api";
+import { audioService } from "../services/audio";
 import { toast } from "sonner";
 import {
   Dialog,
@@ -37,6 +38,9 @@ export function ExportButton() {
         }`,
         duration: 5000,
       });
+
+      // Reproducir sonido de éxito
+      audioService.play('success');
 
       setShowDialog(false);
       setEmail("");

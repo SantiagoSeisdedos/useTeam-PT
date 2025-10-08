@@ -11,4 +11,7 @@ export default defineConfig({
       "@": path.resolve(__dirname, "./src"),
     },
   },
+  server: {
+    host: true, // O '0.0.0.0' para escuchar en todas las interfaces
+  },
 });
