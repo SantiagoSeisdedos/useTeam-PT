@@ -1,0 +1,74 @@
+services:
+  # MongoDB Database
+  mongodb:
+    image: mongo:5.0
+    container_name: mongodb
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo_data:/data/db
+    networks:
+      - kanban-network
+
+  # n8n Automation Platform
+  n8n:
+    image: n8nio/n8n:1.106.3
+    container_name: n8n
+    ports:
+      - "5678:5678"
+    environment:
+      - N8N_BASIC_AUTH_ACTIVE=true
+      - N8N_BASIC_AUTH_USER=admin
+      - N8N_BASIC_AUTH_PASSWORD=admin
+      - N8N_HOST=localhost
+      - N8N_PORT=5678
+      - WEBHOOK_URL=http://localhost:5678/
+    volumes:
+      - n8n_data:/home/node/.n8n
+    depends_on:
+      - mongodb
+    networks:
+      - kanban-network
+
+  # Backend API (NestJS)
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: kanban-backend
+    ports:
+      - "3000:3000"
+    environment:
+      - MONGODB_URI=mongodb://mongodb:27017/kanban-board
+      - PORT=3000
+      - N8N_WEBHOOK_URL=http://n8n:5678/webhook/kanban-export
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - FRONTEND_URL=http://localhost:5173
+    depends_on:
+      - mongodb
+      - n8n
+    networks:
+      - kanban-network
+    restart: unless-stopped
+
+  # Frontend (React + Vite)
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: kanban-frontend
+    ports:
+      - "5173:80"
+    depends_on:
+      - backend
+    networks:
+      - kanban-network
+    restart: unless-stopped
+
+networks:
+  kanban-network:
+    driver: bridge
+
+volumes:
+  mongo_data:
+  n8n_data:

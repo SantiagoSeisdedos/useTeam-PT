@@ -1,0 +1,322 @@
+{
+  "name": "Kanban Backlog Export",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "kanban-export",
+        "responseMode": "lastNode",
+        "responseData": "noData",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [-256, 16],
+      "id": "ad2d015e-4883-4a78-884f-77c19f3bef88",
+      "name": "Webhook",
+      "webhookId": "5a4fa80e-9169-4a5e-a34b-2e016a354d1a"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Recibe el payload del webhook (está en body)\nconst payload = $json.body;\n\nconsole.log(\"= = payload = =\", payload)\n\n// Validar que tasks existe\nif (!payload || !payload.tasks) {\n  throw new Error('No se encontraron tareas en el payload');\n}\n\n// Creamos un array de items a partir de tasks\nreturn payload.tasks.map((task) => ({\n  json: {\n    ...task,\n    email: payload.email,\n    timestamp: payload.timestamp,\n    totalTasks: payload.totalTasks,\n  },\n}));"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [48, 0],
+      "id": "e959decf-c185-4268-9c08-f9890afdeaca",
+      "name": "Code"
+    },
+    {
+      "parameters": {
+        "binaryPropertyName": "=data{{ $json.data }}",
+        "options": {
+          "delimiter": ",",
+          "fileName": "kanban-backlog.csv",
+          "headerRow": true
+        }
+      },
+      "type": "n8n-nodes-base.convertToFile",
+      "typeVersion": 1.1,
+      "position": [560, -112],
+      "id": "126ccdbe-d201-4d49-bca9-c106109d08fe",
+      "name": "Convert to File"
+    },
+    {
+      "parameters": {
+        "operation": "toText",
+        "sourceProperty": "textContent",
+        "binaryPropertyName": "summary.txt",
+        "options": {
+          "fileName": "summary.txt"
+        }
+      },
+      "type": "n8n-nodes-base.convertToFile",
+      "typeVersion": 1.1,
+      "position": [544, 560],
+      "id": "e8998b48-313b-4a6a-90c5-471065eb2d13",
+      "name": "Convert to File1",
+      "disabled": true
+    },
+    {
+      "parameters": {
+        "fieldToSplitOut": "title",
+        "include": "allOtherFields",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitOut",
+      "typeVersion": 1,
+      "position": [368, -112],
+      "id": "67fcc6e6-c22b-4474-8cf8-b7c1b056c9a4",
+      "name": "Split Out"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Obtener todos los items del nodo anterior\nconst allItems = $input.all();\n\n// Validar que hay items\nif (!allItems || allItems.length === 0) {\n  throw new Error('No se recibieron tareas para procesar');\n}\n\nconsole.log(`📦 Procesando ${allItems.length} tareas`);\n\n// Extraer metadata del primer item\nconst firstTask = allItems[0].json;\nconst email = firstTask.email;\nconst timestamp = firstTask.timestamp;\nconst totalTasks = firstTask.totalTasks;\n\n// Construir resumen\nlet textContent = `📋 **REPORTE KANBAN BOARD**\\n\\n`;\ntextContent += `📧 Destinatario: ${email}\\n`;\ntextContent += `📅 Fecha de exportación: ${new Date(timestamp).toLocaleString('es-ES')}\\n`;\ntextContent += `📊 Total de tareas: ${totalTasks}\\n\\n`;\ntextContent += `---\\n\\n`;\n\n// Agrupar por columna\nconst tasksByColumn = {};\nallItems.forEach(item => {\n  const task = item.json;\n  const column = task.column;\n  if (!tasksByColumn[column]) {\n    tasksByColumn[column] = [];\n  }\n  tasksByColumn[column].push(task);\n});\n\n// Generar contenido por columna\nObject.keys(tasksByColumn).forEach(column => {\n  const tasks = tasksByColumn[column];\n  textContent += `## 📌 ${column} (${tasks.length} tareas)\\n\\n`;\n  \n  tasks.forEach((task, index) => {\n    textContent += `${index + 1}. **${task.title}**\\n`;\n    textContent += `   📝 ${task.description}\\n`;\n    textContent += `   🆔 ID: ${task.id}\\n`;\n    textContent += `   📅 Creado: ${new Date(task.fecha_creacion).toLocaleDateString('es-ES')}\\n\\n`;\n  });\n});\n\ntextContent += `---\\n`;\ntextContent += `✅ Exportación completada exitosamente`;\n\nreturn [{ json: { textContent: textContent } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [352, 112],
+      "id": "087f8d38-eb76-4243-bd62-4d0e1901816c",
+      "name": "Code1"
+    },
+    {
+      "parameters": {
+        "modelId": {
+          "__rl": true,
+          "value": "gpt-3.5-turbo",
+          "mode": "list",
+          "cachedResultName": "GPT-3.5-TURBO"
+        },
+        "messages": {
+          "values": [
+            {
+              "content": "Eres un asistente experto en resúmenes de proyectos 'Kanban'. Siempre analiza los datos proporcionados en el mensaje del usuario y responde directamente con el resumen, sin pedir más info. Manténlo breve y en español. Reporta errores si no obtienes data sobre las tareas.",
+              "role": "system"
+            },
+            {
+              "content": "=Haz un resumen conciso de estos datos de tareas del Kanban:\n\n{{ $json.textContent }}\n\nIncluye: total de tareas, distribución por columna (To Do, In Progress, Done), y fechas clave. El objetivo es determinar el estado actual del proyect. Hazlo listo para enviar por email. \nFirma como \"Santiago Seisdedos\",  \"Project manager at useTeam\""
+            }
+          ]
+        },
+        "options": {
+          "maxTokens": 300,
+          "temperature": 0.2
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 1.8,
+      "position": [544, 112],
+      "id": "69cf3d68-aab3-4e6a-931b-b7a6b609b81e",
+      "name": "Message a model",
+      "credentials": {
+        "openAiApi": {
+          "id": "pSnLLzbKIAeiTS1I",
+          "name": "OpenAi account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "fromEmail": "noreply@kanbanflow.local",
+        "toEmail": "santiagoseisdedos@hotmail.com",
+        "subject": "=\"Resumen de Tareas Kanban - {{ $now.format('MM-DD') }}\".",
+        "html": "=<div style=\"font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #ddd; border-radius: 8px; background-color: #f9f9f9;\">\n  <h2 style=\"color: #333; text-align: center; border-bottom: 2px solid #007bff; padding-bottom: 10px;\">Resumen Generado por IA: Tablero Kanban</h2>\n  \n<div style=\"background-color: white; padding: 15px; border-radius: 5px; margin-bottom: 15px; white-space: pre-line;\">\n  {{ $json.message }}\n</div>\n\n  <p style=\"color: #666; font-style: italic; text-align: center;\">\n    <strong>Adjunto:</strong> CSV con datos crudos de las tareas (detalles completos).\n  </p>\n  \n  <hr style=\"border: none; border-top: 1px solid #eee; margin: 20px 0;\">\n  <p style=\"text-align: center; color: #888; font-size: 12px;\">\n    Generado automáticamente el {{ $now.format('DD/MM/YYYY [a las] HH:mm') }} | Project Manager at useTeam\n  </p>\n</div>\n\n",
+        "options": {
+          "appendAttribution": false,
+          "attachments": "={{Object.keys($binary)[0]}}"
+        }
+      },
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [1264, 16],
+      "id": "28d778fc-b61a-4a2a-a5eb-ebba53f997f6",
+      "name": "Send email",
+      "webhookId": "ded18bfe-91a9-4883-a03b-9c5610bc7863",
+      "notesInFlow": false,
+      "alwaysOutputData": false,
+      "credentials": {
+        "smtp": {
+          "id": "9vn4ggkGYlkSapIm",
+          "name": "SMTP account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "advanced": true,
+        "mergeByFields": {
+          "values": [{}]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [816, 576],
+      "id": "8c22dd85-222d-4905-95eb-6b5ac1cfb2f3",
+      "name": "Merge",
+      "alwaysOutputData": true,
+      "disabled": true
+    },
+    {
+      "parameters": {
+        "aggregate": "aggregateAllItemData",
+        "options": {
+          "includeBinaries": true
+        }
+      },
+      "type": "n8n-nodes-base.aggregate",
+      "typeVersion": 1,
+      "position": [736, -112],
+      "id": "24ba0bcd-d196-44b6-86c4-d29b6010f32e",
+      "name": "Aggregate CSV"
+    },
+    {
+      "parameters": {
+        "jsCode": "const allItems = $input.all();\nconst csvItem = allItems.find(i => i.binary);\nconst summaryItem = allItems.find(i => i.json?.message?.content);\n\nconsole.log(\"allItems:\", allItems);\nconsole.log(\"CSV item:\", csvItem);\nconsole.log(\"Summary item:\", summaryItem);\n\nreturn [\n  {\n    json: {\n      message: summaryItem?.json.message.content,\n    },\n    binary: csvItem?.binary,\n  },\n];\n\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1120, 16],
+      "id": "67612b4a-79b1-4e04-b387-06511fd70c5f",
+      "name": "Code2"
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "combineBy": "combineByPosition",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [944, 16],
+      "id": "6bee2771-5363-4948-b2fd-9144bb59afdf",
+      "name": "Merge1",
+      "alwaysOutputData": true
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Code",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code": {
+      "main": [
+        [
+          {
+            "node": "Code1",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Split Out",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Convert to File1": {
+      "main": [[]]
+    },
+    "Convert to File": {
+      "main": [
+        [
+          {
+            "node": "Aggregate CSV",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Split Out": {
+      "main": [
+        [
+          {
+            "node": "Convert to File",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code1": {
+      "main": [
+        [
+          {
+            "node": "Message a model",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Message a model": {
+      "main": [
+        [
+          {
+            "node": "Merge1",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Merge": {
+      "main": [[]]
+    },
+    "Aggregate CSV": {
+      "main": [
+        [
+          {
+            "node": "Merge1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code2": {
+      "main": [
+        [
+          {
+            "node": "Send email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge1": {
+      "main": [
+        [
+          {
+            "node": "Code2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "bb73b06a-839d-4cbe-b2ad-08847ea46710",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "802a84f64389dc7209bb60c8e29709074ded1d3ca9a71b7d648b5e30d02e2927"
+  },
+  "id": "FaCBg7h9NkbUf0Qb",
+  "tags": []
+}
