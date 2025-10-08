@@ -76,6 +76,24 @@ export const boardsApi = {
     const response = await api.get<Board>(`/boards/${id}`);
     return response.data;
   },
+
+  // Agregar una columna
+  addColumn: async (id: string, columnName: string): Promise<Board> => {
+    const response = await api.post<Board>(`/boards/${id}/columns`, { columnName });
+    return response.data;
+  },
+
+  // Renombrar una columna
+  renameColumn: async (id: string, oldName: string, newName: string): Promise<Board> => {
+    const response = await api.patch<Board>(`/boards/${id}/columns/rename`, { oldName, newName });
+    return response.data;
+  },
+
+  // Eliminar una columna
+  deleteColumn: async (id: string, columnName: string): Promise<Board> => {
+    const response = await api.delete<Board>(`/boards/${id}/columns/${encodeURIComponent(columnName)}`);
+    return response.data;
+  },
 };
 
 // Export API (⭐ CRÍTICO para el challenge)

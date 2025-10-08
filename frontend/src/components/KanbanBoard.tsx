@@ -14,7 +14,9 @@ import { TaskCard } from "./TaskCard";
 import { TaskDialog } from "./TaskDialog";
 import { ExportButton } from "./ExportButton";
 import { Button } from "./ui/button";
-import { Loader2, RefreshCw, Users } from "lucide-react";
+import { Card, CardContent } from "./ui/card";
+import { Input } from "./ui/input";
+import { Loader2, RefreshCw, Users, Plus, Check, X } from "lucide-react";
 import { tasksApi, boardsApi } from "../services/api";
 import { socketService } from "../services/socket";
 import { toast } from "sonner";
@@ -29,6 +31,9 @@ export function KanbanBoard() {
   const [editingTask, setEditingTask] = useState<Task | null>(null);
   const [selectedColumn, setSelectedColumn] = useState<string>("");
   const [connectedUsers, setConnectedUsers] = useState(0);
+  const [isAddingColumn, setIsAddingColumn] = useState(false);
+  const [newColumnName, setNewColumnName] = useState("");
+  const [boardId, setBoardId] = useState<string>("");
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -90,6 +95,28 @@ export function KanbanBoard() {
       setConnectedUsers(data.count);
     });
 
+    // Listeners de columnas
+    socketService.onColumnAdded((data) => {
+      setColumns(data.columns);
+      toast.info("Nueva columna agregada", {
+        description: `"${data.columnName}" fue creada por otro usuario`,
+      });
+    });
+
+    socketService.onColumnRenamed((data) => {
+      setColumns(data.columns);
+      toast.info("Columna renombrada", {
+        description: `"${data.oldName}" → "${data.newName}"`,
+      });
+    });
+
+    socketService.onColumnDeleted((data) => {
+      setColumns(data.columns);
+      toast.info("Columna eliminada", {
+        description: `"${data.columnName}" fue eliminada por otro usuario`,
+      });
+    });
+
     return () => {
       socketService.disconnect();
     };
@@ -104,6 +131,7 @@ export function KanbanBoard() {
       ]);
 
       if (boardsData.length > 0) {
+        setBoardId(boardsData[0]._id);
         setColumns(boardsData[0].columns);
       } else {
         // Columnas por defecto si no hay tableros
@@ -299,6 +327,89 @@ export function KanbanBoard() {
     }
   };
 
+  const handleAddColumn = async () => {
+    if (!newColumnName.trim()) {
+      toast.error("El nombre de la columna no puede estar vacío");
+      return;
+    }
+
+    if (columns.includes(newColumnName.trim())) {
+      toast.error("Ya existe una columna con ese nombre");
+      return;
+    }
+
+    try {
+      const updatedBoard = await boardsApi.addColumn(boardId, newColumnName.trim());
+      setColumns(updatedBoard.columns);
+      setNewColumnName("");
+      setIsAddingColumn(false);
+      socketService.emitColumnAdded(newColumnName.trim(), updatedBoard.columns);
+      toast.success("Columna creada exitosamente");
+    } catch (error) {
+      console.error("Error agregando columna:", error);
+      toast.error("Error al crear la columna");
+    }
+  };
+
+  const handleRenameColumn = async (oldName: string, newName: string) => {
+    if (!newName.trim()) {
+      toast.error("El nombre de la columna no puede estar vacío");
+      return;
+    }
+
+    if (oldName === newName.trim()) {
+      return; // No cambió nada
+    }
+
+    if (columns.includes(newName.trim())) {
+      toast.error("Ya existe una columna con ese nombre");
+      return;
+    }
+
+    try {
+      const updatedBoard = await boardsApi.renameColumn(boardId, oldName, newName.trim());
+      setColumns(updatedBoard.columns);
+      
+      // Actualizar tareas localmente
+      setTasks((prev) =>
+        prev.map((task) =>
+          task.column === oldName ? { ...task, column: newName.trim() } : task
+        )
+      );
+
+      socketService.emitColumnRenamed(oldName, newName.trim(), updatedBoard.columns);
+      toast.success(`Columna renombrada: "${oldName}" → "${newName}"`);
+    } catch (error) {
+      console.error("Error renombrando columna:", error);
+      toast.error("Error al renombrar la columna");
+    }
+  };
+
+  const handleDeleteColumn = async (columnName: string) => {
+    const tasksInColumn = getTasksByColumn(columnName).length;
+    
+    const confirmMessage =
+      tasksInColumn > 0
+        ? `¿Eliminar la columna "${columnName}" y sus ${tasksInColumn} tarea(s)?`
+        : `¿Eliminar la columna "${columnName}"?`;
+
+    if (!confirm(confirmMessage)) return;
+
+    try {
+      const updatedBoard = await boardsApi.deleteColumn(boardId, columnName);
+      setColumns(updatedBoard.columns);
+      
+      // Eliminar tareas de esta columna localmente
+      setTasks((prev) => prev.filter((task) => task.column !== columnName));
+
+      socketService.emitColumnDeleted(columnName, updatedBoard.columns);
+      toast.success(`Columna "${columnName}" eliminada`);
+    } catch (error) {
+      console.error("Error eliminando columna:", error);
+      toast.error("Error al eliminar la columna");
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
@@ -359,8 +470,63 @@ export function KanbanBoard() {
                 onEditTask={handleEditTask}
                 onDeleteTask={handleDeleteTask}
                 onColorChange={handleColorChange}
+                onRenameColumn={handleRenameColumn}
+                onDeleteColumn={handleDeleteColumn}
               />
             ))}
+            
+            {/* Botón para agregar columna */}
+            {isAddingColumn ? (
+              <Card className="flex-shrink-0 w-[280px]">
+                <CardContent className="p-4">
+                  <Input
+                    autoFocus
+                    placeholder="Nombre de la columna..."
+                    value={newColumnName}
+                    onChange={(e) => setNewColumnName(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") handleAddColumn();
+                      if (e.key === "Escape") {
+                        setIsAddingColumn(false);
+                        setNewColumnName("");
+                      }
+                    }}
+                    className="mb-2"
+                  />
+                  <div className="flex gap-2">
+                    <Button
+                      size="sm"
+                      onClick={handleAddColumn}
+                      className="flex-1"
+                    >
+                      <Check className="h-4 w-4 mr-1" />
+                      Crear
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => {
+                        setIsAddingColumn(false);
+                        setNewColumnName("");
+                      }}
+                    >
+                      <X className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            ) : (
+              <Button
+                variant="outline"
+                className="flex-shrink-0 h-auto min-h-[100px] w-[280px] border-dashed hover:border-primary hover:bg-primary/5"
+                onClick={() => setIsAddingColumn(true)}
+              >
+                <div className="flex flex-col items-center gap-2 py-4">
+                  <Plus className="h-8 w-8" />
+                  <span className="font-medium">Nueva Columna</span>
+                </div>
+              </Button>
+            )}
           </div>
 
           <DragOverlay>

@@ -82,23 +82,21 @@ export function TaskCard({ task, onEdit, onDelete, onColorChange }: TaskCardProp
         backgroundColor: task.color || undefined,
         borderLeft: task.color ? `4px solid ${task.color}` : undefined,
       }}
-      className={`mb-2 cursor-move hover:shadow-md transition-all ${
-        isDragging ? 'shadow-xl ring-2 ring-primary' : ''
+      className={`mb-2 cursor-grab active:cursor-grabbing hover:shadow-md transition-all ${
+        isDragging ? 'shadow-2xl ring-2 ring-primary scale-105 opacity-80 rotate-2' : ''
       } ${task.color ? 'bg-opacity-10' : ''}`}
+      {...attributes}
+      {...listeners}
     >
       <CardHeader className="p-3 pb-2">
         <div className="flex items-start gap-2">
-          <button
-            className="cursor-grab active:cursor-grabbing mt-1"
-            {...attributes}
-            {...listeners}
-          >
+          <div className="mt-1">
             <GripVertical className={`h-4 w-4 ${mutedTextClass}`} />
-          </button>
+          </div>
           <CardTitle className={`text-sm font-medium flex-1 ${textColorClass}`}>
             {task.title}
           </CardTitle>
-          <div className="flex gap-1">
+          <div className="flex gap-1" onPointerDown={(e) => e.stopPropagation()}>
             <Popover open={isColorPickerOpen} onOpenChange={setIsColorPickerOpen}>
               <PopoverTrigger asChild>
                 <Button

@@ -71,6 +71,19 @@ class SocketService {
     this.socket?.emit("task-moved", data);
   }
 
+  // Eventos de columnas emitidos desde el cliente
+  emitColumnAdded(columnName: string, columns: string[]) {
+    this.socket?.emit("column-added", { columnName, columns });
+  }
+
+  emitColumnRenamed(oldName: string, newName: string, columns: string[]) {
+    this.socket?.emit("column-renamed", { oldName, newName, columns });
+  }
+
+  emitColumnDeleted(columnName: string, columns: string[]) {
+    this.socket?.emit("column-deleted", { columnName, columns });
+  }
+
   // Escuchar eventos del servidor
   onTaskCreated(callback: (data: SocketTaskEvent) => void) {
     this.socket?.on("task-created", callback);
@@ -90,6 +103,28 @@ class SocketService {
   onTaskMoved(callback: (data: SocketTaskMovedEvent) => void) {
     this.socket?.on("task-moved", callback);
     this.addListener("task-moved", callback);
+  }
+
+  // Escuchar eventos de columnas del servidor
+  onColumnAdded(
+    callback: (data: { columnName: string; columns: string[]; userId: string; timestamp: string }) => void
+  ) {
+    this.socket?.on("column-added", callback);
+    this.addListener("column-added", callback);
+  }
+
+  onColumnRenamed(
+    callback: (data: { oldName: string; newName: string; columns: string[]; userId: string; timestamp: string }) => void
+  ) {
+    this.socket?.on("column-renamed", callback);
+    this.addListener("column-renamed", callback);
+  }
+
+  onColumnDeleted(
+    callback: (data: { columnName: string; columns: string[]; userId: string; timestamp: string }) => void
+  ) {
+    this.socket?.on("column-deleted", callback);
+    this.addListener("column-deleted", callback);
   }
 
   onUserConnected(

@@ -14,6 +14,9 @@ import {
   TaskUpdatedEvent,
   TaskDeletedEvent,
   TaskMovedEvent,
+  ColumnAddedEvent,
+  ColumnRenamedEvent,
+  ColumnDeletedEvent,
 } from './interfaces/socket-events.interface';
 
 /**
@@ -135,6 +138,60 @@ export class KanbanGateway implements OnGatewayConnection, OnGatewayDisconnect {
       destinationColumn: data.destinationColumn,
       sourceIndex: data.sourceIndex,
       destinationIndex: data.destinationIndex,
+      userId: client.id,
+      timestamp: new Date().toISOString(),
+    });
+  }
+
+  /**
+   * Evento cuando se agrega una nueva columna
+   */
+  @SubscribeMessage('column-added')
+  handleColumnAdded(
+    @MessageBody() data: ColumnAddedEvent,
+    @ConnectedSocket() client: Socket,
+  ) {
+    this.logger.log(`Columna agregada por ${client.id}: ${data.columnName}`);
+    client.broadcast.emit('column-added', {
+      columnName: data.columnName,
+      columns: data.columns,
+      userId: client.id,
+      timestamp: new Date().toISOString(),
+    });
+  }
+
+  /**
+   * Evento cuando se renombra una columna
+   */
+  @SubscribeMessage('column-renamed')
+  handleColumnRenamed(
+    @MessageBody() data: ColumnRenamedEvent,
+    @ConnectedSocket() client: Socket,
+  ) {
+    this.logger.log(
+      `Columna renombrada por ${client.id}: "${data.oldName}" → "${data.newName}"`,
+    );
+    client.broadcast.emit('column-renamed', {
+      oldName: data.oldName,
+      newName: data.newName,
+      columns: data.columns,
+      userId: client.id,
+      timestamp: new Date().toISOString(),
+    });
+  }
+
+  /**
+   * Evento cuando se elimina una columna
+   */
+  @SubscribeMessage('column-deleted')
+  handleColumnDeleted(
+    @MessageBody() data: ColumnDeletedEvent,
+    @ConnectedSocket() client: Socket,
+  ) {
+    this.logger.log(`Columna eliminada por ${client.id}: ${data.columnName}`);
+    client.broadcast.emit('column-deleted', {
+      columnName: data.columnName,
+      columns: data.columns,
       userId: client.id,
       timestamp: new Date().toISOString(),
     });
