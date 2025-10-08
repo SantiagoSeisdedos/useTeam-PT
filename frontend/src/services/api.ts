@@ -108,3 +108,24 @@ export const exportApi = {
     return response.data;
   },
 };
+
+// AI API (Mejora de descripciones con IA)
+export const aiApi = {
+  // Mejorar descripción de tarea
+  improveDescription: async (data: {
+    currentDescription: string;
+    taskTitle: string;
+    mode: 'simple' | 'context';
+    model?: 'gpt-3.5-turbo' | 'gpt-4o-mini' | 'gpt-4o';
+    contextTasks?: Array<{ title: string; description: string; column: string }>;
+  }): Promise<{
+    success: boolean;
+    original: string;
+    improved: string;
+    mode: string;
+    model: string;
+  }> => {
+    const response = await api.post("/ai/improve-description", data);
+    return response.data;
+  },
+};

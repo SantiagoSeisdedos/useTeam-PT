@@ -558,6 +558,7 @@ export function KanbanBoard() {
         onSubmit={handleSubmitTask}
         task={editingTask || undefined}
         column={selectedColumn}
+        allTasks={tasks}
       />
     </div>
   );

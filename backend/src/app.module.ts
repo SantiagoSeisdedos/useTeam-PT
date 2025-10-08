@@ -7,6 +7,7 @@ import { TasksModule } from './tasks/tasks.module';
 import { BoardsModule } from './boards/boards.module';
 import { ExportModule } from './export/export.module';
 import { GatewayModule } from './gateway/gateway.module';
+import { AiModule } from './ai/ai.module';
 
 @Module({
   imports: [
@@ -30,6 +31,7 @@ import { GatewayModule } from './gateway/gateway.module';
     BoardsModule,
     ExportModule,
     GatewayModule,
+    AiModule,
   ],
   controllers: [AppController],
   providers: [AppService],
