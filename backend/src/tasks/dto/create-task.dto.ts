@@ -16,4 +16,8 @@ export class CreateTaskDto {
   @IsNumber()
   @IsOptional()
   position?: number;
+
+  @IsString()
+  @IsOptional()
+  color?: string | null;
 }

@@ -4,6 +4,7 @@ export interface Task {
   description: string;
   column: string;
   position: number;
+  color?: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -21,6 +22,7 @@ export interface CreateTaskDto {
   description: string;
   column: string;
   position?: number;
+  color?: string | null;
 }
 
 export interface UpdateTaskDto {
@@ -28,6 +30,7 @@ export interface UpdateTaskDto {
   description?: string;
   column?: string;
   position?: number;
+  color?: string | null;
 }
 
 export interface MoveTaskDto {

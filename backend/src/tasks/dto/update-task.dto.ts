@@ -16,4 +16,8 @@ export class UpdateTaskDto {
   @IsNumber()
   @IsOptional()
   position?: number;
+
+  @IsString()
+  @IsOptional()
+  color?: string | null;
 }

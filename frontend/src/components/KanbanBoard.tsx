@@ -285,6 +285,20 @@ export function KanbanBoard() {
     }
   };
 
+  const handleColorChange = async (taskId: string, color: string | null) => {
+    try {
+      const updatedTask = await tasksApi.update(taskId, { color });
+      setTasks((prev) =>
+        prev.map((task) => (task._id === taskId ? updatedTask : task))
+      );
+      socketService.emitTaskUpdated(taskId, { color });
+      toast.success("Color actualizado");
+    } catch (error) {
+      console.error("Error actualizando color:", error);
+      toast.error("Error al cambiar el color");
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
@@ -344,6 +358,7 @@ export function KanbanBoard() {
                 onAddTask={handleAddTask}
                 onEditTask={handleEditTask}
                 onDeleteTask={handleDeleteTask}
+                onColorChange={handleColorChange}
               />
             ))}
           </div>
@@ -354,6 +369,7 @@ export function KanbanBoard() {
                 task={activeTask}
                 onEdit={() => {}}
                 onDelete={() => {}}
+                onColorChange={() => {}}
               />
             ) : null}
           </DragOverlay>

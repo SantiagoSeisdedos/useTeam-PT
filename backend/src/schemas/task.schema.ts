@@ -17,6 +17,9 @@ export class Task {
   @Prop({ required: true, default: 0 })
   position: number;
 
+  @Prop({ type: String, default: null })
+  color: string | null;
+
   @Prop({ type: Date, default: Date.now })
   createdAt: Date;
 

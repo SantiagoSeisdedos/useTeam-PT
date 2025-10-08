@@ -34,7 +34,7 @@ export class KanbanGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
   handleConnection(client: Socket) {
     this.logger.log(`Cliente conectado: ${client.id}`);
-    
+
     // Obtener total de usuarios conectados
     const connectedUsers = this.server.sockets.sockets.size;
     this.logger.log(`Total usuarios conectados: ${connectedUsers}`);
@@ -55,7 +55,7 @@ export class KanbanGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
   handleDisconnect(client: Socket) {
     this.logger.log(`Cliente desconectado: ${client.id}`);
-    
+
     // Obtener total de usuarios conectados después de la desconexión
     const connectedUsers = this.server.sockets.sockets.size;
     this.logger.log(`Total usuarios conectados: ${connectedUsers}`);

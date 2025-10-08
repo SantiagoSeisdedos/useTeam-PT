@@ -12,6 +12,7 @@ interface KanbanColumnProps {
   onAddTask: (column: string) => void;
   onEditTask: (task: Task) => void;
   onDeleteTask: (taskId: string) => void;
+  onColorChange: (taskId: string, color: string | null) => void;
 }
 
 export function KanbanColumn({
@@ -20,6 +21,7 @@ export function KanbanColumn({
   onAddTask,
   onEditTask,
   onDeleteTask,
+  onColorChange,
 }: KanbanColumnProps) {
   const { setNodeRef, isOver } = useDroppable({ id: column });
 
@@ -60,6 +62,7 @@ export function KanbanColumn({
                 task={task}
                 onEdit={onEditTask}
                 onDelete={onDeleteTask}
+                onColorChange={onColorChange}
               />
             ))}
             {tasks.length === 0 && (
