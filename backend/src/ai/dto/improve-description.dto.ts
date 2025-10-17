@@ -18,9 +18,20 @@ export class ImproveDescriptionDto {
   @IsEnum(['simple', 'context'])
   mode: 'simple' | 'context';
 
-  @IsEnum(['gpt-3.5-turbo', 'gpt-4o-mini', 'gpt-4o'])
+  @IsEnum([
+    'gpt-3.5-turbo',
+    'gpt-4o-mini',
+    'gpt-4o',
+    'gemini-2.5-flash',
+    'gemini-2.5-pro',
+  ])
   @IsOptional()
-  model?: 'gpt-3.5-turbo' | 'gpt-4o-mini' | 'gpt-4o';
+  model?:
+    | 'gpt-3.5-turbo'
+    | 'gpt-4o-mini'
+    | 'gpt-4o'
+    | 'gemini-2.5-flash'
+    | 'gemini-2.5-pro';
 
   @IsArray()
   @IsOptional()

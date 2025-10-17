@@ -194,9 +194,9 @@ http://localhost:5678
 
 ## 🧪 **Verificar que Todo Funciona** (Ambas Opciones)
 
-### **Poblar Base de Datos** (Opcional)
+### **Poblar Base de Datos** (Opcional pero Recomendado)
 
-Para tener datos de ejemplo:
+El tablero se crea automáticamente al abrir la app por primera vez, pero puedes poblar con datos de ejemplo:
 
 **Opción A (Docker):**
 ```bash
@@ -209,7 +209,11 @@ cd backend
 npm run seed
 ```
 
-Esto creará 1 tablero con 3 columnas y 8 tareas de ejemplo.
+**Esto creará:**
+- 1 tablero con 3 columnas predefinidas
+- 8 tareas de ejemplo distribuidas
+
+**⚠️ IMPORTANTE:** Si no ejecutas el seed, el tablero se creará vacío automáticamente al abrir `http://localhost:5173`
 
 ---
 

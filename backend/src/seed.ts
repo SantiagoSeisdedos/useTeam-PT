@@ -85,9 +85,12 @@ async function seed() {
 
     await app.close();
   } catch (error) {
-    logger.error('❌ Error durante el seed:', error.message);
+    logger.error('❌ Error durante el seed:', (error as Error).message);
     process.exit(1);
   }
 }
 
-seed();
+seed().catch((error) => {
+  console.error('Error durante el seed:', (error as Error).message);
+  process.exit(1);
+});

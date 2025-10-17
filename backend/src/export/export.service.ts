@@ -63,10 +63,10 @@ export class ExportService {
         success: true,
         message: 'Exportación iniciada exitosamente',
         tasksExported: tasks.length,
-        webhookResponse: response.data,
+        webhookResponse: response.data as unknown,
       };
-    } catch (error: any) {
-      this.logger.error('Error al exportar backlog:', error?.message || error);
+    } catch (error) {
+      this.logger.error('Error al exportar backlog:', (error as Error).message);
       throw error;
     }
   }

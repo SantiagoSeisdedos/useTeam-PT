@@ -129,19 +129,23 @@ export function KanbanBoard() {
   const loadInitialData = async () => {
     try {
       setLoading(true);
-      const [boardsData, tasksData] = await Promise.all([
-        boardsApi.getAll(),
-        tasksApi.getAll(),
-      ]);
+      let boardsData = await boardsApi.getAll();
 
-      if (boardsData.length > 0) {
-        setBoardId(boardsData[0]._id);
-        setColumns(boardsData[0].columns);
-      } else {
-        // Columnas por defecto si no hay tableros
-        setColumns(["Por Hacer", "En Progreso", "Completado"]);
+      // Si no hay boards, crear uno por defecto
+      if (boardsData.length === 0) {
+        const defaultBoard = await boardsApi.create({
+          name: "Mi Tablero Kanban",
+          columns: ["Por Hacer", "En Progreso", "Completado"],
+        });
+        boardsData = [defaultBoard];
+        toast.success("Tablero creado automáticamente");
       }
 
+      // Cargar board y tareas
+      const tasksData = await tasksApi.getAll();
+
+      setBoardId(boardsData[0]._id);
+      setColumns(boardsData[0].columns);
       setTasks(tasksData);
     } catch (error) {
       console.error("Error cargando datos:", error);

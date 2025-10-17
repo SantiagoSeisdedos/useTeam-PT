@@ -77,6 +77,12 @@ export const boardsApi = {
     return response.data;
   },
 
+  // Crear un tablero
+  create: async (data: { name: string; columns: string[] }): Promise<Board> => {
+    const response = await api.post<Board>("/boards", data);
+    return response.data;
+  },
+
   // Agregar una columna
   addColumn: async (id: string, columnName: string): Promise<Board> => {
     const response = await api.post<Board>(`/boards/${id}/columns`, { columnName });
@@ -109,12 +115,26 @@ export const exportApi = {
 
 // AI API (Mejora de descripciones con IA)
 export const aiApi = {
+  // Obtener estado de proveedores de IA
+  getStatus: async (): Promise<{
+    openai: { available: boolean; models: string[] };
+    gemini: { available: boolean; models: string[] };
+  }> => {
+    const response = await api.get("/ai/status");
+    return response.data;
+  },
+
   // Mejorar descripción de tarea
   improveDescription: async (data: {
     currentDescription: string;
     taskTitle: string;
     mode: 'simple' | 'context';
-    model?: 'gpt-3.5-turbo' | 'gpt-4o-mini' | 'gpt-4o';
+    model?:
+      | 'gpt-3.5-turbo'
+      | 'gpt-4o-mini'
+      | 'gpt-4o'
+      | 'gemini-2.5-flash'
+      | 'gemini-2.5-pro';
     contextTasks?: Array<{ title: string; description: string; column: string }>;
   }): Promise<{
     success: boolean;

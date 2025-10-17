@@ -27,6 +27,19 @@ interface TaskDialogProps {
   allTasks?: Task[]; // Para contexto de IA
 }
 
+type AIMode = 'simple' | 'context';
+type AIModel =
+  | 'gpt-3.5-turbo'
+  | 'gpt-4o-mini'
+  | 'gpt-4o'
+  | 'gemini-2.5-flash'
+  | 'gemini-2.5-pro';
+
+interface AIProviderStatus {
+  openai: { available: boolean; models: string[] };
+  gemini: { available: boolean; models: string[] };
+}
+
 export function TaskDialog({
   open,
   onOpenChange,
@@ -39,8 +52,40 @@ export function TaskDialog({
   const [description, setDescription] = useState('');
   const [isImproving, setIsImproving] = useState(false);
   const [improvedDescription, setImprovedDescription] = useState<string | null>(null);
-  const [aiMode, setAiMode] = useState<'simple' | 'context'>('simple');
-  const [aiModel, setAiModel] = useState<'gpt-3.5-turbo' | 'gpt-4o-mini' | 'gpt-4o'>('gpt-4o-mini');
+  const [aiMode, setAiMode] = useState<AIMode>('simple');
+  const [aiModel, setAiModel] = useState<AIModel>('gpt-4o-mini');
+  const [aiStatus, setAiStatus] = useState<AIProviderStatus | null>(null);
+
+  // Consultar estado de proveedores de IA al montar // TODO: Move to a reducer/context
+  useEffect(() => {
+    const fetchAIStatus = async () => {
+      try {
+        const status = await aiApi.getStatus();
+        setAiStatus(status);
+
+        // Si el modelo actual no está disponible, cambiar a uno disponible
+        const currentModelProvider = aiModel.startsWith('gpt') ? 'openai' : 'gemini';
+        const isCurrentAvailable =
+          currentModelProvider === 'openai'
+            ? status.openai.available
+            : status.gemini.available;
+
+        if (!isCurrentAvailable) {
+          // Buscar el primer modelo disponible
+          if (status.openai.available && status.openai.models.length > 0) {
+            setAiModel(status.openai.models[0] as AIModel);
+          } else if (status.gemini.available && status.gemini.models.length > 0) {
+            setAiModel(status.gemini.models[0] as AIModel);
+          }
+        }
+      } catch (error) {
+        console.error('Error fetching AI status:', error);
+      }
+    };
+
+    fetchAIStatus();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     if (task) {
@@ -107,8 +152,15 @@ export function TaskDialog({
     } catch (error) {
       console.error('Error mejorando con IA:', error);
       toast.dismiss();
+      
+      // Mensaje de error más específico
+      const errorMessage = error instanceof Error ? error.message : 'Error desconocido';
+      const selectedProvider = aiModel.startsWith('gpt') ? 'OpenAI' : 'Gemini';
+      
       toast.error('Error al mejorar con IA', {
-        description: 'Verifica que tengas configurada tu API Key de OpenAI',
+        description: errorMessage.includes('not available')
+          ? `${selectedProvider} no está disponible. Verifica tu API Key.`
+          : errorMessage,
       });
     } finally {
       setIsImproving(false);
@@ -161,8 +213,20 @@ export function TaskDialog({
                   variant="ghost"
                   size="sm"
                   onClick={handleImproveWithAI}
-                  disabled={isImproving || !description.trim() || !title.trim()}
+                  disabled={
+                    isImproving ||
+                    !description.trim() ||
+                    !title.trim() ||
+                    (aiStatus
+                      ? !aiStatus.openai.available && !aiStatus.gemini.available
+                      : false)
+                  }
                   className="h-8 gap-1"
+                  title={
+                    aiStatus && !aiStatus.openai.available && !aiStatus.gemini.available
+                      ? 'No hay proveedores de IA disponibles'
+                      : ''
+                  }
                 >
                   {isImproving ? (
                     <>
@@ -190,10 +254,19 @@ export function TaskDialog({
                 <div className="space-y-3 pt-2">
                   <Separator />
                   
+                  {/* Aviso si no hay proveedores disponibles */}
+                  {aiStatus && !aiStatus.openai.available && !aiStatus.gemini.available && (
+                    <div className="p-3 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg">
+                      <p className="text-xs text-yellow-800 dark:text-yellow-200">
+                        ⚠️ No hay proveedores de IA configurados. Configura OPENAI_API_KEY o GEMINI_API_KEY en el backend.
+                      </p>
+                    </div>
+                  )}
+                  
                   {/* Modo de mejora */}
                   <div className="space-y-2">
                     <Label className="text-xs text-muted-foreground">Modo de mejora:</Label>
-                    <RadioGroup value={aiMode} onValueChange={(v) => setAiMode(v as any)}>
+                    <RadioGroup value={aiMode} onValueChange={(v) => setAiMode(v as AIMode)}>
                       <div className="flex items-center space-x-2">
                         <RadioGroupItem value="simple" id="mode-simple" />
                         <Label htmlFor="mode-simple" className="cursor-pointer font-normal">
@@ -211,25 +284,85 @@ export function TaskDialog({
 
                   {/* Modelo */}
                   <div className="space-y-2">
-                    <Label className="text-xs text-muted-foreground">Modelo:</Label>
-                    <RadioGroup value={aiModel} onValueChange={(v) => setAiModel(v as any)}>
-                      <div className="flex items-center space-x-2">
-                        <RadioGroupItem value="gpt-4o-mini" id="model-mini" />
-                        <Label htmlFor="model-mini" className="cursor-pointer font-normal">
-                          GPT-4o Mini (rápido y económico) ⚡
+                    <Label className="text-xs text-muted-foreground">Modelo de IA:</Label>
+                    <RadioGroup value={aiModel} onValueChange={(v) => setAiModel(v as AIModel)}>
+                      {/* OpenAI Models */}
+                      <div className="space-y-2">
+                        <Label className="text-xs font-semibold text-muted-foreground">
+                          OpenAI {!aiStatus?.openai.available && '(No disponible)'}
                         </Label>
+                        <div className="flex items-center space-x-2">
+                          <RadioGroupItem
+                            value="gpt-4o-mini"
+                            id="model-mini"
+                            disabled={!aiStatus?.openai.available}
+                          />
+                          <Label
+                            htmlFor="model-mini"
+                            className={`cursor-pointer font-normal ${!aiStatus?.openai.available ? 'text-muted-foreground/50' : ''}`}
+                          >
+                            GPT-4o Mini (rápido) ⚡
+                          </Label>
+                        </div>
+                        <div className="flex items-center space-x-2">
+                          <RadioGroupItem
+                            value="gpt-3.5-turbo"
+                            id="model-35"
+                            disabled={!aiStatus?.openai.available}
+                          />
+                          <Label
+                            htmlFor="model-35"
+                            className={`cursor-pointer font-normal ${!aiStatus?.openai.available ? 'text-muted-foreground/50' : ''}`}
+                          >
+                            GPT-3.5 Turbo (económico)
+                          </Label>
+                        </div>
+                        <div className="flex items-center space-x-2">
+                          <RadioGroupItem
+                            value="gpt-4o"
+                            id="model-4o"
+                            disabled={!aiStatus?.openai.available}
+                          />
+                          <Label
+                            htmlFor="model-4o"
+                            className={`cursor-pointer font-normal ${!aiStatus?.openai.available ? 'text-muted-foreground/50' : ''}`}
+                          >
+                            GPT-4o (máxima calidad) 🚀
+                          </Label>
+                        </div>
                       </div>
-                      <div className="flex items-center space-x-2">
-                        <RadioGroupItem value="gpt-3.5-turbo" id="model-35" />
-                        <Label htmlFor="model-35" className="cursor-pointer font-normal">
-                          GPT-3.5 Turbo (económico)
+
+                      {/* Gemini Models */}
+                      <div className="space-y-2 pt-2">
+                        <Label className="text-xs font-semibold text-muted-foreground">
+                          Google Gemini {!aiStatus?.gemini.available && '(No disponible)'}
                         </Label>
-                      </div>
-                      <div className="flex items-center space-x-2">
-                        <RadioGroupItem value="gpt-4o" id="model-4o" />
-                        <Label htmlFor="model-4o" className="cursor-pointer font-normal">
-                          GPT-4o (máxima calidad) 🚀
-                        </Label>
+                        <div className="flex items-center space-x-2">
+                          <RadioGroupItem
+                            value="gemini-2.5-flash"
+                            id="model-gemini-flash"
+                            disabled={!aiStatus?.gemini.available}
+                          />
+                          <Label
+                            htmlFor="model-gemini-flash"
+                            className={`cursor-pointer font-normal ${!aiStatus?.gemini.available ? 'text-muted-foreground/50' : ''}`}
+                          >
+                            Gemini 2.5 Flash (rápido y gratis) 🆓
+                          </Label>
+                        </div>
+                        <div className="flex items-center space-x-2">
+                          <RadioGroupItem
+                            value="gemini-2.5-pro"
+                            id="model-gemini-pro"
+                            disabled={!aiStatus?.gemini.available}
+                          />
+                          <Label
+                            htmlFor="model-gemini-pro"
+                            className={`cursor-pointer font-normal ${!aiStatus?.gemini.available ? 'text-muted-foreground/50' : ''}`}
+                          >
+                            Gemini 2.5 Pro (avanzado y gratis) 🎯
+                          </Label>
+                        </div>
                       </div>
                     </RadioGroup>
                   </div>

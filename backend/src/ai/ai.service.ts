@@ -1,59 +1,118 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import axios from 'axios';
+import { GoogleGenAI } from '@google/genai';
 
 export type AIModel = 'gpt-3.5-turbo' | 'gpt-4o-mini' | 'gpt-4o';
+export type GeminiModel = 'gemini-2.5-flash' | 'gemini-2.5-pro';
+export type AllAIModels = AIModel | GeminiModel;
 export type ImprovementMode = 'simple' | 'context';
 
 interface ImproveDescriptionParams {
   currentDescription: string;
   taskTitle: string;
   mode: ImprovementMode;
-  model?: AIModel;
+  model?: AllAIModels;
   contextTasks?: Array<{ title: string; description: string; column: string }>;
 }
 
 @Injectable()
 export class AiService {
   private openaiApiKey: string;
+  private geminiApiKey: string;
+  private genAI: GoogleGenAI | null = null;
   private readonly defaultModel: AIModel = 'gpt-4o-mini';
+  private readonly defaultGeminiModel: GeminiModel = 'gemini-2.5-flash';
+  private logger: Logger = new Logger('AiService');
 
   constructor(private configService: ConfigService) {
     this.openaiApiKey = this.configService.get<string>('OPENAI_API_KEY') || '';
+    this.geminiApiKey = this.configService.get<string>('GEMINI_API_KEY') || '';
+    // Inicializar cliente de Gemini si hay API key
+    if (this.geminiApiKey) {
+      this.genAI = new GoogleGenAI({ apiKey: this.geminiApiKey });
+    }
+  }
+
+  /**
+   * Retorna el estado de disponibilidad de los proveedores de IA
+   */
+  getProvidersStatus() {
+    return {
+      openai: {
+        available: !!this.openaiApiKey,
+        models: ['gpt-3.5-turbo', 'gpt-4o-mini', 'gpt-4o'],
+      },
+      gemini: {
+        available: !!this.geminiApiKey,
+        models: ['gemini-2.5-flash', 'gemini-2.5-pro'],
+      },
+    };
+  }
+
+  /**
+   * Determina si un modelo es de OpenAI o Gemini
+   */
+  private isOpenAIModel(model: string): model is AIModel {
+    return ['gpt-3.5-turbo', 'gpt-4o-mini', 'gpt-4o'].includes(model);
+  }
+
+  private isGeminiModel(model: string): model is GeminiModel {
+    return ['gemini-2.5-flash', 'gemini-2.5-pro'].includes(model);
   }
 
   async improveDescription(params: ImproveDescriptionParams): Promise<string> {
-    if (!this.openaiApiKey) {
-      throw new Error('OpenAI API key not configured');
+    const selectedModel = params.model;
+
+    // Determinar qué proveedor usar basado en el modelo seleccionado
+    let useOpenAI = false;
+    let useGemini = false;
+
+    if (selectedModel) {
+      // Usuario eligió un modelo específico
+      if (this.isOpenAIModel(selectedModel)) {
+        useOpenAI = this.openaiApiKey ? true : false;
+      } else if (this.isGeminiModel(selectedModel)) {
+        useGemini = this.geminiApiKey ? true : false;
+      }
+    } else {
+      // Sin modelo específico, usar por defecto
+      // Prioridad: OpenAI > Gemini
+      useOpenAI = !!this.openaiApiKey;
+      useGemini = !useOpenAI && !!this.geminiApiKey;
     }
 
-    const model = params.model || this.defaultModel;
+    // Construir el prompt centralizado
+    const prompt =
+      params.mode === 'simple'
+        ? this.buildSimplePrompt(params.currentDescription, params.taskTitle)
+        : this.buildContextPrompt(
+            params.currentDescription,
+            params.taskTitle,
+            params.contextTasks || [],
+          );
 
-    if (params.mode === 'simple') {
-      return this.improveSimple(
-        params.currentDescription,
-        params.taskTitle,
-        model,
-      );
+    // Ejecutar con el proveedor correspondiente
+    if (useOpenAI && this.openaiApiKey) {
+      const model = (selectedModel as AIModel) || this.defaultModel;
+      const maxTokens = params.mode === 'simple' ? 3000 : 5000;
+      return this.callOpenAI(prompt, model, maxTokens);
+    } else if (useGemini && this.geminiApiKey) {
+      const model = (selectedModel as GeminiModel) || this.defaultGeminiModel;
+      const maxTokens = params.mode === 'simple' ? 3000 : 5000;
+      return this.callGemini(prompt, model, maxTokens);
     } else {
-      return this.improveWithContext(
-        params.currentDescription,
-        params.taskTitle,
-        params.contextTasks || [],
-        model,
+      throw new Error(
+        'AI provider not available for the selected model. Please check your API keys.',
       );
     }
   }
 
   /**
-   * Mejora simple: solo gramática y redacción
+   * Construye el prompt para mejora simple (centralizado)
    */
-  private async improveSimple(
-    description: string,
-    title: string,
-    model: AIModel,
-  ): Promise<string> {
-    const prompt = `Eres un asistente experto en mejorar descripciones de tareas de un tablero Kanban.
+  private buildSimplePrompt(description: string, title: string): string {
+    return `Eres un asistente experto en mejorar descripciones de tareas de un tablero Kanban.
 
 Tu tarea: Mejorar SOLO la gramática, ortografía y redacción de la siguiente descripción de tarea, manteniendo el mismo significado y longitud similar.
 
@@ -69,22 +128,19 @@ REGLAS:
 - Responde SOLO con la descripción mejorada, sin explicaciones adicionales
 
 DESCRIPCIÓN MEJORADA:`;
-
-    return this.callOpenAI(prompt, model, 500);
   }
 
   /**
-   * Mejora con contexto: análisis de tareas relacionadas
+   * Construye el prompt para mejora con contexto (centralizado)
    */
-  private async improveWithContext(
+  private buildContextPrompt(
     description: string,
     title: string,
     contextTasks: Array<{ title: string; description: string; column: string }>,
-    model: AIModel,
-  ): Promise<string> {
+  ): string {
     const contextSummary = this.buildContextSummary(contextTasks);
 
-    const prompt = `Eres un asistente experto en gestión de proyectos y tableros Kanban.
+    return `Eres un asistente experto en gestión de proyectos y tableros Kanban.
 
 CONTEXTO DEL PROYECTO:
 ${contextSummary}
@@ -108,8 +164,6 @@ REGLAS:
 - Responde SOLO con la descripción mejorada, sin explicaciones adicionales
 
 DESCRIPCIÓN MEJORADA:`;
-
-    return this.callOpenAI(prompt, model, 1000);
   }
 
   /**
@@ -152,7 +206,9 @@ DESCRIPCIÓN MEJORADA:`;
     maxTokens: number,
   ): Promise<string> {
     try {
-      const response = await axios.post(
+      const response = await axios.post<{
+        choices: Array<{ message: { content: string } }>;
+      }>(
         'https://api.openai.com/v1/chat/completions',
         {
           model,
@@ -182,6 +238,67 @@ DESCRIPCIÓN MEJORADA:`;
     } catch (error) {
       console.error('Error calling OpenAI API:', error);
       throw new Error('Failed to improve description with AI');
+    }
+  }
+
+  /**
+   * Llamada a la API de Gemini (Google) usando SDK oficial
+   */
+  private async callGemini(
+    prompt: string,
+    model: GeminiModel,
+    maxOutputTokens: number = 3000,
+  ): Promise<string> {
+    try {
+      if (!this.genAI) {
+        throw new Error('Gemini client not initialized');
+      }
+
+      // Generar contenido con la nueva sintaxis
+      const response = await this.genAI.models.generateContent({
+        model: model,
+        contents: [{ role: 'user', parts: [{ text: prompt }] }],
+        config: {
+          temperature: 0.7,
+          maxOutputTokens: maxOutputTokens,
+        },
+      });
+
+      // Verificar si la respuesta fue bloqueada por filtros de seguridad
+      if (response.promptFeedback?.blockReason) {
+        this.logger.warn(
+          'Gemini API Blocked Response:',
+          response.promptFeedback.blockReason,
+        );
+        throw new Error(
+          'La solicitud fue bloqueada por filtros de seguridad del modelo (Gemini).',
+        );
+      }
+
+      const text = response.text;
+
+      if (!text) {
+        this.logger.error('Empty response from Gemini:', response);
+        throw new Error('Respuesta inválida o vacía de la API de Gemini');
+      }
+
+      return text.trim();
+    } catch (error) {
+      this.logger.error('Error calling Gemini API:', error);
+
+      // Manejar errores específicos
+      if (error instanceof Error) {
+        if (error.message.includes('quota') || error.message.includes('429')) {
+          throw new Error(
+            'Gemini rate limit exceeded. Please try again in a moment.',
+          );
+        }
+        if (error.message.includes('API_KEY')) {
+          throw new Error('Invalid Gemini API key');
+        }
+      }
+
+      throw new Error('Failed to improve description with AI (Gemini)');
     }
   }
 }
