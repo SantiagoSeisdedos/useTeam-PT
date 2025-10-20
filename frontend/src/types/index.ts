@@ -4,6 +4,7 @@ export interface Task {
   description: string;
   column: string;
   position: number;
+  boardId: string;
   color?: string | null;
   createdAt: string;
   updatedAt: string;
@@ -21,6 +22,7 @@ export interface CreateTaskDto {
   title: string;
   description: string;
   column: string;
+  boardId: string;
   position?: number;
   color?: string | null;
 }

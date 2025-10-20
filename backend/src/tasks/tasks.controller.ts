@@ -23,7 +23,13 @@ export class TasksController {
   }
 
   @Get()
-  findAll(@Query('column') column?: string) {
+  findAll(
+    @Query('boardId') boardId?: string,
+    @Query('column') column?: string,
+  ) {
+    if (boardId) {
+      return this.tasksService.findByBoard(boardId, column);
+    }
     if (column) {
       return this.tasksService.findByColumn(column);
     }

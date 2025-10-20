@@ -14,6 +14,8 @@ import { TaskCard } from "./TaskCard";
 import { TaskDialog } from "./TaskDialog";
 import { ExportButton } from "./ExportButton";
 import { AudioSettings } from "./AudioSettings";
+import { BoardSelector } from "./BoardSelector";
+import { CreateBoardDialog } from "./CreateBoardDialog";
 import { Button } from "./ui/button";
 import { Card, CardContent } from "./ui/card";
 import { Input } from "./ui/input";
@@ -22,9 +24,15 @@ import { tasksApi, boardsApi } from "../services/api";
 import { socketService } from "../services/socket";
 import { audioService } from "../services/audio";
 import { toast } from "sonner";
-import type { Task } from "../types";
+import type { Task, Board } from "../types";
 
 export function KanbanBoard() {
+  // Estado de tableros
+  const [boards, setBoards] = useState<Board[]>([]);
+  const [activeBoard, setActiveBoard] = useState<Board | null>(null);
+  const [createBoardDialogOpen, setCreateBoardDialogOpen] = useState(false);
+  
+  // Estado de tareas
   const [tasks, setTasks] = useState<Task[]>([]);
   const [columns, setColumns] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
@@ -32,10 +40,11 @@ export function KanbanBoard() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingTask, setEditingTask] = useState<Task | null>(null);
   const [selectedColumn, setSelectedColumn] = useState<string>("");
+  
+  // Estado de UI
   const [connectedUsers, setConnectedUsers] = useState(0);
   const [isAddingColumn, setIsAddingColumn] = useState(false);
   const [newColumnName, setNewColumnName] = useState("");
-  const [boardId, setBoardId] = useState<string>("");
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -141,11 +150,13 @@ export function KanbanBoard() {
         toast.success("Tablero creado automáticamente");
       }
 
-      // Cargar board y tareas
-      const tasksData = await tasksApi.getAll();
-
-      setBoardId(boardsData[0]._id);
+      // Establecer boards y board activo
+      setBoards(boardsData);
+      setActiveBoard(boardsData[0]);
       setColumns(boardsData[0].columns);
+
+      // Cargar tareas del board activo
+      const tasksData = await tasksApi.getAll(boardsData[0]._id);
       setTasks(tasksData);
     } catch (error) {
       console.error("Error cargando datos:", error);
@@ -156,11 +167,49 @@ export function KanbanBoard() {
   };
 
   const loadTasks = async () => {
+    if (!activeBoard) return;
+    
     try {
-      const tasksData = await tasksApi.getAll();
+      const tasksData = await tasksApi.getAll(activeBoard._id);
       setTasks(tasksData);
     } catch (error) {
       console.error("Error cargando tareas:", error);
+    }
+  };
+
+  // Cambiar de tablero
+  const handleBoardChange = async (board: Board) => {
+    try {
+      setLoading(true);
+      setActiveBoard(board);
+      setColumns(board.columns);
+      
+      // Cargar tareas del nuevo board
+      const tasksData = await tasksApi.getAll(board._id);
+      setTasks(tasksData);
+      
+      toast.success(`Tablero cambiado: ${board.name}`);
+    } catch (error) {
+      console.error("Error cambiando de tablero:", error);
+      toast.error("Error al cambiar de tablero");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Crear nuevo tablero
+  const handleCreateBoard = async (data: { name: string; columns: string[] }) => {
+    try {
+      const newBoard = await boardsApi.create(data);
+      setBoards([...boards, newBoard]);
+      setActiveBoard(newBoard);
+      setColumns(newBoard.columns);
+      setTasks([]); // Nuevo tablero no tiene tareas
+      setCreateBoardDialogOpen(false);
+      toast.success(`Tablero "${newBoard.name}" creado`);
+    } catch (error) {
+      console.error("Error creando tablero:", error);
+      toast.error("Error al crear tablero");
     }
   };
 
@@ -279,6 +328,11 @@ export function KanbanBoard() {
     title: string;
     description: string;
   }) => {
+    if (!activeBoard) {
+      toast.error("No hay tablero activo");
+      return;
+    }
+
     try {
       if (editingTask) {
         // Actualizar tarea existente
@@ -295,6 +349,7 @@ export function KanbanBoard() {
         const newTask = await tasksApi.create({
           ...data,
           column: selectedColumn,
+          boardId: activeBoard._id,
         });
         setTasks((prev) => [...prev, newTask]);
         socketService.emitTaskCreated(newTask);
@@ -338,6 +393,11 @@ export function KanbanBoard() {
   };
 
   const handleAddColumn = async () => {
+    if (!activeBoard) {
+      toast.error("No hay tablero activo");
+      return;
+    }
+
     if (!newColumnName.trim()) {
       toast.error("El nombre de la columna no puede estar vacío");
       return;
@@ -349,8 +409,9 @@ export function KanbanBoard() {
     }
 
     try {
-      const updatedBoard = await boardsApi.addColumn(boardId, newColumnName.trim());
+      const updatedBoard = await boardsApi.addColumn(activeBoard._id, newColumnName.trim());
       setColumns(updatedBoard.columns);
+      setActiveBoard(updatedBoard);
       setNewColumnName("");
       setIsAddingColumn(false);
       socketService.emitColumnAdded(newColumnName.trim(), updatedBoard.columns);
@@ -363,6 +424,11 @@ export function KanbanBoard() {
   };
 
   const handleRenameColumn = async (oldName: string, newName: string) => {
+    if (!activeBoard) {
+      toast.error("No hay tablero activo");
+      return;
+    }
+
     if (!newName.trim()) {
       toast.error("El nombre de la columna no puede estar vacío");
       return;
@@ -378,8 +444,9 @@ export function KanbanBoard() {
     }
 
     try {
-      const updatedBoard = await boardsApi.renameColumn(boardId, oldName, newName.trim());
+      const updatedBoard = await boardsApi.renameColumn(activeBoard._id, oldName, newName.trim());
       setColumns(updatedBoard.columns);
+      setActiveBoard(updatedBoard);
       
       // Actualizar tareas localmente
       setTasks((prev) =>
@@ -397,6 +464,11 @@ export function KanbanBoard() {
   };
 
   const handleDeleteColumn = async (columnName: string) => {
+    if (!activeBoard) {
+      toast.error("No hay tablero activo");
+      return;
+    }
+
     const tasksInColumn = getTasksByColumn(columnName).length;
     
     const confirmMessage =
@@ -407,8 +479,9 @@ export function KanbanBoard() {
     if (!confirm(confirmMessage)) return;
 
     try {
-      const updatedBoard = await boardsApi.deleteColumn(boardId, columnName);
+      const updatedBoard = await boardsApi.deleteColumn(activeBoard._id, columnName);
       setColumns(updatedBoard.columns);
+      setActiveBoard(updatedBoard);
       
       // Eliminar tareas de esta columna localmente
       setTasks((prev) => prev.filter((task) => task.column !== columnName));
@@ -436,7 +509,7 @@ export function KanbanBoard() {
       <div className="border-b">
         <div className="container mx-auto px-4 py-4">
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-4">
               <img
                 src="/useteam_logo.svg"
                 alt="useTeam"
@@ -448,6 +521,21 @@ export function KanbanBoard() {
                   Colaboración en tiempo real
                 </p>
               </div>
+              
+              {/* Selector de tableros */}
+              {boards.length > 0 && (
+                <BoardSelector
+                  boards={boards}
+                  activeBoard={activeBoard}
+                  onBoardChange={handleBoardChange}
+                  onCreateBoard={() => setCreateBoardDialogOpen(true)}
+                  taskCounts={
+                    activeBoard
+                      ? { [activeBoard._id]: tasks.length }
+                      : {}
+                  }
+                />
+              )}
             </div>
             <div className="flex items-center gap-3">
               {socketService.isConnected() && connectedUsers > 0 && (
@@ -563,6 +651,12 @@ export function KanbanBoard() {
         task={editingTask || undefined}
         column={selectedColumn}
         allTasks={tasks}
+      />
+
+      <CreateBoardDialog
+        open={createBoardDialogOpen}
+        onOpenChange={setCreateBoardDialogOpen}
+        onSubmit={handleCreateBoard}
       />
     </div>
   );

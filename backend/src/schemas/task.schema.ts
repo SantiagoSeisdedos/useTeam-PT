@@ -1,5 +1,5 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
-import { Document } from 'mongoose';
+import { Document, Types } from 'mongoose';
 
 export type TaskDocument = Task & Document;
 
@@ -19,6 +19,9 @@ export class Task {
 
   @Prop({ type: String, default: null })
   color: string | null;
+
+  @Prop({ type: Types.ObjectId, ref: 'Board', required: true, index: true })
+  boardId: Types.ObjectId;
 
   @Prop({ type: Date, default: Date.now })
   createdAt: Date;

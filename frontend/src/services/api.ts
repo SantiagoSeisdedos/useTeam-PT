@@ -18,17 +18,20 @@ const api = axios.create({
 
 // Tasks API
 export const tasksApi = {
-  // Obtener todas las tareas
-  getAll: async (): Promise<Task[]> => {
-    const response = await api.get<Task[]>("/tasks");
+  // Obtener todas las tareas (opcionalmente filtradas por board)
+  getAll: async (boardId?: string): Promise<Task[]> => {
+    const url = boardId ? `/tasks?boardId=${boardId}` : "/tasks";
+    const response = await api.get<Task[]>(url);
     return response.data;
   },
 
-  // Obtener tareas por columna
-  getByColumn: async (column: string): Promise<Task[]> => {
-    const response = await api.get<Task[]>(
-      `/tasks?column=${encodeURIComponent(column)}`
-    );
+  // Obtener tareas por columna y board
+  getByColumn: async (column: string, boardId?: string): Promise<Task[]> => {
+    let url = `/tasks?column=${encodeURIComponent(column)}`;
+    if (boardId) {
+      url += `&boardId=${boardId}`;
+    }
+    const response = await api.get<Task[]>(url);
     return response.data;
   },
 

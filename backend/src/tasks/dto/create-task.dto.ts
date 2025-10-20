@@ -1,4 +1,10 @@
-import { IsString, IsNotEmpty, IsOptional, IsNumber } from 'class-validator';
+import {
+  IsString,
+  IsNotEmpty,
+  IsOptional,
+  IsNumber,
+  IsMongoId,
+} from 'class-validator';
 
 export class CreateTaskDto {
   @IsString()
@@ -12,6 +18,10 @@ export class CreateTaskDto {
   @IsString()
   @IsNotEmpty()
   column: string;
+
+  @IsMongoId()
+  @IsNotEmpty()
+  boardId: string;
 
   @IsNumber()
   @IsOptional()

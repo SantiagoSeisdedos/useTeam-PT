@@ -11,10 +11,13 @@ export class TasksService {
   constructor(@InjectModel(Task.name) private taskModel: Model<TaskDocument>) {}
 
   async create(createTaskDto: CreateTaskDto): Promise<Task> {
-    // Si no se especifica posición, obtener la última posición de la columna
+    // Si no se especifica posición, obtener la última posición de la columna EN EL BOARD
     if (createTaskDto.position === undefined) {
       const tasksInColumn = await this.taskModel
-        .find({ column: createTaskDto.column })
+        .find({
+          column: createTaskDto.column,
+          boardId: createTaskDto.boardId,
+        })
         .sort({ position: -1 })
         .limit(1);
 
@@ -28,6 +31,14 @@ export class TasksService {
 
   async findAll(): Promise<Task[]> {
     return this.taskModel.find().sort({ column: 1, position: 1 }).exec();
+  }
+
+  async findByBoard(boardId: string, column?: string): Promise<Task[]> {
+    const filter: { boardId: string; column?: string } = { boardId };
+    if (column) {
+      filter.column = column;
+    }
+    return this.taskModel.find(filter).sort({ position: 1 }).exec();
   }
 
   async findByColumn(column: string): Promise<Task[]> {
@@ -64,16 +75,21 @@ export class TasksService {
   /**
    * Mueve una tarea entre columnas o dentro de la misma columna
    * Actualiza las posiciones de todas las tareas afectadas
+   * Ahora considera el boardId para evitar conflictos entre tableros
    */
   async moveTask(id: string, moveTaskDto: MoveTaskDto): Promise<Task> {
     const { sourceColumn, destinationColumn, sourceIndex, destinationIndex } =
       moveTaskDto;
 
+    // Obtener la tarea para saber su boardId
+    const task = await this.findOne(id);
+    const boardId = task.boardId;
+
     // Si se mueve dentro de la misma columna
     if (sourceColumn === destinationColumn) {
-      // Obtener todas las tareas de la columna
+      // Obtener todas las tareas de la columna EN ESTE BOARD
       const tasksInColumn = await this.taskModel
-        .find({ column: sourceColumn })
+        .find({ column: sourceColumn, boardId })
         .sort({ position: 1 })
         .exec();
 
@@ -91,17 +107,21 @@ export class TasksService {
         ),
       );
     } else {
-      // Mover entre columnas diferentes
+      // Mover entre columnas diferentes (del mismo board)
 
       // Actualizar posiciones en la columna origen
       await this.taskModel.updateMany(
-        { column: sourceColumn, position: { $gt: sourceIndex } },
+        { column: sourceColumn, boardId, position: { $gt: sourceIndex } },
         { $inc: { position: -1 } },
       );
 
       // Actualizar posiciones en la columna destino
       await this.taskModel.updateMany(
-        { column: destinationColumn, position: { $gte: destinationIndex } },
+        {
+          column: destinationColumn,
+          boardId,
+          position: { $gte: destinationIndex },
+        },
         { $inc: { position: 1 } },
       );
 
