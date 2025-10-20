@@ -84,6 +84,15 @@ class SocketService {
     this.socket?.emit("column-deleted", { columnName, columns });
   }
 
+  // Eventos de tableros emitidos desde el cliente
+  emitBoardUpdated(boardId: string, name: string) {
+    this.socket?.emit("board-updated", { boardId, name });
+  }
+
+  emitBoardDeleted(boardId: string) {
+    this.socket?.emit("board-deleted", { boardId });
+  }
+
   // Escuchar eventos del servidor
   onTaskCreated(callback: (data: SocketTaskEvent) => void) {
     this.socket?.on("task-created", callback);
@@ -146,6 +155,21 @@ class SocketService {
   ) {
     this.socket?.on("connected-users-count", callback);
     this.addListener("connected-users-count", callback);
+  }
+
+  // Escuchar eventos de tableros del servidor
+  onBoardUpdated(
+    callback: (data: { boardId: string; name: string; userId: string; timestamp: string }) => void
+  ) {
+    this.socket?.on("board-updated", callback);
+    this.addListener("board-updated", callback);
+  }
+
+  onBoardDeleted(
+    callback: (data: { boardId: string; userId: string; timestamp: string }) => void
+  ) {
+    this.socket?.on("board-deleted", callback);
+    this.addListener("board-deleted", callback);
   }
 
   // Remover listeners

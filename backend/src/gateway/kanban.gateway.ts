@@ -17,6 +17,8 @@ import {
   ColumnAddedEvent,
   ColumnRenamedEvent,
   ColumnDeletedEvent,
+  BoardUpdatedEvent,
+  BoardDeletedEvent,
 } from './interfaces/socket-events.interface';
 
 /**
@@ -192,6 +194,39 @@ export class KanbanGateway implements OnGatewayConnection, OnGatewayDisconnect {
     client.broadcast.emit('column-deleted', {
       columnName: data.columnName,
       columns: data.columns,
+      userId: client.id,
+      timestamp: new Date().toISOString(),
+    });
+  }
+
+  /**
+   * Evento cuando se actualiza un tablero
+   */
+  @SubscribeMessage('board-updated')
+  handleBoardUpdated(
+    @MessageBody() data: BoardUpdatedEvent,
+    @ConnectedSocket() client: Socket,
+  ) {
+    this.logger.log(`Tablero actualizado por ${client.id}: ${data.boardId}`);
+    client.broadcast.emit('board-updated', {
+      boardId: data.boardId,
+      name: data.name,
+      userId: client.id,
+      timestamp: new Date().toISOString(),
+    });
+  }
+
+  /**
+   * Evento cuando se elimina un tablero
+   */
+  @SubscribeMessage('board-deleted')
+  handleBoardDeleted(
+    @MessageBody() data: BoardDeletedEvent,
+    @ConnectedSocket() client: Socket,
+  ) {
+    this.logger.log(`Tablero eliminado por ${client.id}: ${data.boardId}`);
+    client.broadcast.emit('board-deleted', {
+      boardId: data.boardId,
       userId: client.id,
       timestamp: new Date().toISOString(),
     });

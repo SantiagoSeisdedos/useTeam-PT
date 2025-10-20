@@ -40,3 +40,13 @@ export interface ColumnDeletedEvent {
   columnName: string;
   columns: string[];
 }
+
+// Board Events
+export interface BoardUpdatedEvent {
+  boardId: string;
+  name: string;
+}
+
+export interface BoardDeletedEvent {
+  boardId: string;
+}

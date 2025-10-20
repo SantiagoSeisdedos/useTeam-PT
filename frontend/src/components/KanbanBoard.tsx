@@ -16,6 +16,7 @@ import { ExportButton } from "./ExportButton";
 import { AudioSettings } from "./AudioSettings";
 import { BoardSelector } from "./BoardSelector";
 import { CreateBoardDialog } from "./CreateBoardDialog";
+import { EditBoardDialog } from "./EditBoardDialog";
 import { Button } from "./ui/button";
 import { Card, CardContent } from "./ui/card";
 import { Input } from "./ui/input";
@@ -31,6 +32,8 @@ export function KanbanBoard() {
   const [boards, setBoards] = useState<Board[]>([]);
   const [activeBoard, setActiveBoard] = useState<Board | null>(null);
   const [createBoardDialogOpen, setCreateBoardDialogOpen] = useState(false);
+  const [editBoardDialogOpen, setEditBoardDialogOpen] = useState(false);
+  const [boardToEdit, setBoardToEdit] = useState<Board | null>(null);
   
   // Estado de tareas
   const [tasks, setTasks] = useState<Task[]>([]);
@@ -85,9 +88,22 @@ export function KanbanBoard() {
       toast.info("Tarea eliminada por otro usuario");
     });
 
-    socketService.onTaskMoved(() => {
-      // Recargar tareas cuando otro usuario mueve una tarea
-      loadTasks();
+    socketService.onTaskMoved((data) => {
+      // Actualizar tarea movida localmente (sin recargar)
+      setTasks((prev) =>
+        prev.map((task) =>
+          task._id === data.taskId
+            ? {
+                ...task,
+                column: data.destinationColumn,
+                position: data.destinationIndex,
+              }
+            : task
+        )
+      );
+      
+      // Opcional: mostrar toast
+      // toast.info("Tarea movida por otro usuario");
     });
 
     // Nuevo evento: recibir el total de usuarios al conectarse
@@ -130,10 +146,49 @@ export function KanbanBoard() {
       });
     });
 
+    // Listeners de tableros
+    socketService.onBoardUpdated((data) => {
+      // Actualizar nombre del tablero en la lista
+      setBoards((prev) =>
+        prev.map((b) => (b._id === data.boardId ? { ...b, name: data.name } : b))
+      );
+      
+      // Si es el tablero activo, actualizarlo también
+      if (activeBoard?._id === data.boardId) {
+        setActiveBoard((prev) => (prev ? { ...prev, name: data.name } : prev));
+      }
+      
+      toast.info("Tablero actualizado", {
+        description: `"${data.name}" fue renombrado por otro usuario`,
+      });
+    });
+
+    socketService.onBoardDeleted((data) => {
+      // Remover tablero de la lista
+      setBoards((prev) => {
+        const remaining = prev.filter((b) => b._id !== data.boardId);
+        
+        // Si se eliminó el tablero activo, cambiar al primero
+        if (activeBoard?._id === data.boardId && remaining.length > 0) {
+          const firstBoard = remaining[0];
+          setActiveBoard(firstBoard);
+          setColumns(firstBoard.columns);
+          // Recargar tareas del nuevo tablero activo
+          tasksApi.getAll(firstBoard._id).then(setTasks);
+        }
+        
+        return remaining;
+      });
+      
+      toast.warning("Tablero eliminado", {
+        description: "Un tablero fue eliminado por otro usuario",
+      });
+    });
+
     return () => {
       socketService.disconnect();
     };
-  }, []);
+  }, [activeBoard]);
 
   const loadInitialData = async () => {
     try {
@@ -210,6 +265,90 @@ export function KanbanBoard() {
     } catch (error) {
       console.error("Error creando tablero:", error);
       toast.error("Error al crear tablero");
+    }
+  };
+
+  // Editar tablero
+  const handleEditBoard = (board: Board) => {
+    setBoardToEdit(board);
+    setEditBoardDialogOpen(true);
+  };
+
+  const handleSubmitEditBoard = async (newName: string) => {
+    if (!boardToEdit) return;
+
+    try {
+      const updatedBoard = await boardsApi.update(boardToEdit._id, { name: newName });
+      
+      // Actualizar en la lista de boards
+      setBoards((prev) =>
+        prev.map((b) => (b._id === boardToEdit._id ? updatedBoard : b))
+      );
+      
+      // Si es el tablero activo, actualizarlo también
+      if (activeBoard?._id === boardToEdit._id) {
+        setActiveBoard(updatedBoard);
+      }
+      
+      // Emitir evento WebSocket para sincronizar otros clientes
+      socketService.emitBoardUpdated(boardToEdit._id, newName);
+      
+      setEditBoardDialogOpen(false);
+      setBoardToEdit(null);
+      toast.success(`Tablero renombrado a "${newName}"`);
+    } catch (error) {
+      console.error("Error actualizando tablero:", error);
+      toast.error("Error al actualizar tablero");
+    }
+  };
+
+  // Eliminar tablero
+  const handleDeleteBoard = async (board: Board) => {
+    const taskCount = tasks.filter((t) => t.boardId === board._id).length;
+    
+    const confirmMessage =
+      taskCount > 0
+        ? `¿Eliminar el tablero "${board.name}" y sus ${taskCount} tarea(s)?`
+        : `¿Eliminar el tablero "${board.name}"?`;
+
+    if (!confirm(confirmMessage)) return;
+
+    try {
+      await boardsApi.delete(board._id);
+      
+      // Emitir evento WebSocket para sincronizar otros clientes
+      socketService.emitBoardDeleted(board._id);
+      
+      // Remover de la lista
+      const remainingBoards = boards.filter((b) => b._id !== board._id);
+      setBoards(remainingBoards);
+      
+      // Si es el tablero activo, cambiar al primero disponible
+      if (activeBoard?._id === board._id) {
+        if (remainingBoards.length > 0) {
+          const firstBoard = remainingBoards[0];
+          setActiveBoard(firstBoard);
+          setColumns(firstBoard.columns);
+          const tasksData = await tasksApi.getAll(firstBoard._id);
+          setTasks(tasksData);
+        } else {
+          // No hay más tableros, crear uno nuevo automáticamente
+          const defaultBoard = await boardsApi.create({
+            name: "Mi Tablero Kanban",
+            columns: ["Por Hacer", "En Progreso", "Completado"],
+          });
+          setBoards([defaultBoard]);
+          setActiveBoard(defaultBoard);
+          setColumns(defaultBoard.columns);
+          setTasks([]);
+          toast.success("Tablero por defecto creado");
+        }
+      }
+      
+      toast.success(`Tablero "${board.name}" eliminado`);
+    } catch (error) {
+      console.error("Error eliminando tablero:", error);
+      toast.error("Error al eliminar tablero");
     }
   };
 
@@ -529,6 +668,8 @@ export function KanbanBoard() {
                   activeBoard={activeBoard}
                   onBoardChange={handleBoardChange}
                   onCreateBoard={() => setCreateBoardDialogOpen(true)}
+                  onEditBoard={handleEditBoard}
+                  onDeleteBoard={handleDeleteBoard}
                   taskCounts={
                     activeBoard
                       ? { [activeBoard._id]: tasks.length }
@@ -657,6 +798,13 @@ export function KanbanBoard() {
         open={createBoardDialogOpen}
         onOpenChange={setCreateBoardDialogOpen}
         onSubmit={handleCreateBoard}
+      />
+
+      <EditBoardDialog
+        open={editBoardDialogOpen}
+        onOpenChange={setEditBoardDialogOpen}
+        onSubmit={handleSubmitEditBoard}
+        board={boardToEdit}
       />
     </div>
   );

@@ -86,6 +86,18 @@ export const boardsApi = {
     return response.data;
   },
 
+  // Actualizar un tablero
+  update: async (id: string, data: { name?: string }): Promise<Board> => {
+    const response = await api.patch<Board>(`/boards/${id}`, data);
+    return response.data;
+  },
+
+  // Eliminar un tablero
+  delete: async (id: string): Promise<Board> => {
+    const response = await api.delete<Board>(`/boards/${id}`);
+    return response.data;
+  },
+
   // Agregar una columna
   addColumn: async (id: string, columnName: string): Promise<Board> => {
     const response = await api.post<Board>(`/boards/${id}/columns`, { columnName });
