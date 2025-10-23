@@ -16,6 +16,8 @@ export interface Board {
   columns: string[];
   createdAt: string;
   updatedAt: string;
+  isPublic: boolean;
+  owner: User | null;
 }
 
 export interface CreateTaskDto {
@@ -76,3 +78,11 @@ export interface SocketTaskMovedEvent {
   timestamp: string;
 }
 
+export interface User {
+  _id: string;
+  walletAddress: string;
+  username?: string;
+  email?: string;
+  createdAt: string;
+  updatedAt?: string;
+}

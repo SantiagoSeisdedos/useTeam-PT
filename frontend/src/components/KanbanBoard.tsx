@@ -17,6 +17,7 @@ import { AudioSettings } from "./AudioSettings";
 import { BoardSelector } from "./BoardSelector";
 import { CreateBoardDialog } from "./CreateBoardDialog";
 import { EditBoardDialog } from "./EditBoardDialog";
+import { WalletConnect } from "./WalletConnect";
 import { Button } from "./ui/button";
 import { Card, CardContent } from "./ui/card";
 import { Input } from "./ui/input";
@@ -25,16 +26,20 @@ import { tasksApi, boardsApi } from "../services/api";
 import { socketService } from "../services/socket";
 import { audioService } from "../services/audio";
 import { toast } from "sonner";
+import { useAuth } from "../contexts/AuthContext";
+import { useAccount } from "wagmi";
 import type { Task, Board } from "../types";
 
 export function KanbanBoard() {
+  const { isAuthenticated, login, logout, user, isLoading: authLoading } = useAuth();
+  const { isConnected } = useAccount();
   // Estado de tableros
   const [boards, setBoards] = useState<Board[]>([]);
   const [activeBoard, setActiveBoard] = useState<Board | null>(null);
   const [createBoardDialogOpen, setCreateBoardDialogOpen] = useState(false);
   const [editBoardDialogOpen, setEditBoardDialogOpen] = useState(false);
   const [boardToEdit, setBoardToEdit] = useState<Board | null>(null);
-  
+
   // Estado de tareas
   const [tasks, setTasks] = useState<Task[]>([]);
   const [columns, setColumns] = useState<string[]>([]);
@@ -43,7 +48,7 @@ export function KanbanBoard() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingTask, setEditingTask] = useState<Task | null>(null);
   const [selectedColumn, setSelectedColumn] = useState<string>("");
-  
+
   // Estado de UI
   const [connectedUsers, setConnectedUsers] = useState(0);
   const [isAddingColumn, setIsAddingColumn] = useState(false);
@@ -62,6 +67,13 @@ export function KanbanBoard() {
     loadInitialData();
   }, []);
 
+  // Unirse al room del tablero activo cuando cambie
+  useEffect(() => {
+    if (activeBoard && socketService.isConnected()) {
+      socketService.joinBoard(activeBoard._id);
+    }
+  }, [activeBoard]);
+
   // Configurar WebSocket
   useEffect(() => {
     socketService.connect();
@@ -71,7 +83,7 @@ export function KanbanBoard() {
       toast.info("Nueva tarea creada", {
         description: `${task.title} fue creada por otro usuario`,
       });
-      audioService.play('notification'); // Sonido de notificación
+      audioService.play("notification"); // Sonido de notificación
       setTasks((prev) => [...prev, task]);
     });
 
@@ -101,7 +113,7 @@ export function KanbanBoard() {
             : task
         )
       );
-      
+
       // Opcional: mostrar toast
       // toast.info("Tarea movida por otro usuario");
     });
@@ -111,13 +123,13 @@ export function KanbanBoard() {
       setConnectedUsers(data.count);
     });
 
-    socketService.onUserConnected((data) => {
-      setConnectedUsers(data.count);
-      toast.info("Nuevo usuario conectado", {
-        description: `Ahora hay ${data.count} usuario(s) conectado(s)`,
-        duration: 2000,
-      });
-    });
+    // socketService.onUserConnected((data) => {
+    //   setConnectedUsers(data.count);
+    //   toast.info("Nuevo usuario conectado", {
+    //     description: `Ahora hay ${data.count} usuario(s) conectado(s)`,
+    //     duration: 2000,
+    //   });
+    // });
 
     socketService.onUserDisconnected((data) => {
       setConnectedUsers(data.count);
@@ -129,7 +141,7 @@ export function KanbanBoard() {
       toast.info("Nueva columna agregada", {
         description: `"${data.columnName}" fue creada por otro usuario`,
       });
-      audioService.play('notification'); // Sonido de notificación
+      audioService.play("notification"); // Sonido de notificación
     });
 
     socketService.onColumnRenamed((data) => {
@@ -150,14 +162,16 @@ export function KanbanBoard() {
     socketService.onBoardUpdated((data) => {
       // Actualizar nombre del tablero en la lista
       setBoards((prev) =>
-        prev.map((b) => (b._id === data.boardId ? { ...b, name: data.name } : b))
+        prev.map((b) =>
+          b._id === data.boardId ? { ...b, name: data.name } : b
+        )
       );
-      
+
       // Si es el tablero activo, actualizarlo también
       if (activeBoard?._id === data.boardId) {
         setActiveBoard((prev) => (prev ? { ...prev, name: data.name } : prev));
       }
-      
+
       toast.info("Tablero actualizado", {
         description: `"${data.name}" fue renombrado por otro usuario`,
       });
@@ -167,7 +181,7 @@ export function KanbanBoard() {
       // Remover tablero de la lista
       setBoards((prev) => {
         const remaining = prev.filter((b) => b._id !== data.boardId);
-        
+
         // Si se eliminó el tablero activo, cambiar al primero
         if (activeBoard?._id === data.boardId && remaining.length > 0) {
           const firstBoard = remaining[0];
@@ -176,10 +190,10 @@ export function KanbanBoard() {
           // Recargar tareas del nuevo tablero activo
           tasksApi.getAll(firstBoard._id).then(setTasks);
         }
-        
+
         return remaining;
       });
-      
+
       toast.warning("Tablero eliminado", {
         description: "Un tablero fue eliminado por otro usuario",
       });
@@ -190,29 +204,49 @@ export function KanbanBoard() {
     };
   }, [activeBoard]);
 
+  // Auto-login cuando la wallet se conecta
+  useEffect(() => {
+    if (isConnected && !isAuthenticated && !authLoading) {
+      // Mostrar toast sugiriendo autenticación
+      const handleAuth = async () => {
+        await login();
+      };
+
+      toast.info("Wallet conectada", {
+        description: "Haz clic en 'Autenticar' para guardar tus tableros",
+        action: {
+          label: "Autenticar",
+          onClick: handleAuth,
+        },
+        duration: 10000,
+      });
+    }
+  }, [isConnected, isAuthenticated, authLoading, login]);
+
   const loadInitialData = async () => {
     try {
       setLoading(true);
-      let boardsData = await boardsApi.getAll();
+      const boardsData = await boardsApi.getAll();
 
-      // Si no hay boards, crear uno por defecto
-      if (boardsData.length === 0) {
-        const defaultBoard = await boardsApi.create({
-          name: "Mi Tablero Kanban",
-          columns: ["Por Hacer", "En Progreso", "Completado"],
+      if (boardsData.length > 0) {
+        // Establecer boards y board activo
+        setBoards(boardsData);
+        setActiveBoard(boardsData[0]);
+        setColumns(boardsData[0].columns);
+
+        // Cargar tareas del board activo
+        const tasksData = await tasksApi.getAll(boardsData[0]._id);
+        setTasks(tasksData);
+      } else {
+        // Si no hay boards, mostrar mensaje y permitir crear uno manualmente
+        setBoards([]);
+        setActiveBoard(null);
+        setColumns([]);
+        setTasks([]);
+        toast.info("No hay tableros disponibles", {
+          description: "Conecta tu wallet para crear un tablero privado o espera a que se cree uno público",
         });
-        boardsData = [defaultBoard];
-        toast.success("Tablero creado automáticamente");
       }
-
-      // Establecer boards y board activo
-      setBoards(boardsData);
-      setActiveBoard(boardsData[0]);
-      setColumns(boardsData[0].columns);
-
-      // Cargar tareas del board activo
-      const tasksData = await tasksApi.getAll(boardsData[0]._id);
-      setTasks(tasksData);
     } catch (error) {
       console.error("Error cargando datos:", error);
       toast.error("Error al cargar el tablero");
@@ -223,7 +257,7 @@ export function KanbanBoard() {
 
   const loadTasks = async () => {
     if (!activeBoard) return;
-    
+
     try {
       const tasksData = await tasksApi.getAll(activeBoard._id);
       setTasks(tasksData);
@@ -236,13 +270,22 @@ export function KanbanBoard() {
   const handleBoardChange = async (board: Board) => {
     try {
       setLoading(true);
+      
+      // Salir del room del tablero anterior si existe
+      if (activeBoard) {
+        socketService.leaveBoard(activeBoard._id);
+      }
+      
       setActiveBoard(board);
       setColumns(board.columns);
-      
+
+      // Unirse al room del nuevo tablero
+      socketService.joinBoard(board._id);
+
       // Cargar tareas del nuevo board
       const tasksData = await tasksApi.getAll(board._id);
       setTasks(tasksData);
-      
+
       toast.success(`Tablero cambiado: ${board.name}`);
     } catch (error) {
       console.error("Error cambiando de tablero:", error);
@@ -252,8 +295,14 @@ export function KanbanBoard() {
     }
   };
 
+
+  // TODO: Add a centralized error handling for API calls with proper error messages response from the backend.
+  // Error al crear tablero: AxiosError: Request failed with status code 401
   // Crear nuevo tablero
-  const handleCreateBoard = async (data: { name: string; columns: string[] }) => {
+  const handleCreateBoard = async (data: {
+    name: string;
+    columns: string[];
+  }) => {
     try {
       const newBoard = await boardsApi.create(data);
       setBoards([...boards, newBoard]);
@@ -264,7 +313,7 @@ export function KanbanBoard() {
       toast.success(`Tablero "${newBoard.name}" creado`);
     } catch (error) {
       console.error("Error creando tablero:", error);
-      toast.error("Error al crear tablero");
+      toast.error("Error al crear tablero: " + error);
     }
   };
 
@@ -278,21 +327,23 @@ export function KanbanBoard() {
     if (!boardToEdit) return;
 
     try {
-      const updatedBoard = await boardsApi.update(boardToEdit._id, { name: newName });
-      
+      const updatedBoard = await boardsApi.update(boardToEdit._id, {
+        name: newName,
+      });
+
       // Actualizar en la lista de boards
       setBoards((prev) =>
         prev.map((b) => (b._id === boardToEdit._id ? updatedBoard : b))
       );
-      
+
       // Si es el tablero activo, actualizarlo también
       if (activeBoard?._id === boardToEdit._id) {
         setActiveBoard(updatedBoard);
       }
-      
+
       // Emitir evento WebSocket para sincronizar otros clientes
       socketService.emitBoardUpdated(boardToEdit._id, newName);
-      
+
       setEditBoardDialogOpen(false);
       setBoardToEdit(null);
       toast.success(`Tablero renombrado a "${newName}"`);
@@ -305,7 +356,7 @@ export function KanbanBoard() {
   // Eliminar tablero
   const handleDeleteBoard = async (board: Board) => {
     const taskCount = tasks.filter((t) => t.boardId === board._id).length;
-    
+
     const confirmMessage =
       taskCount > 0
         ? `¿Eliminar el tablero "${board.name}" y sus ${taskCount} tarea(s)?`
@@ -315,14 +366,14 @@ export function KanbanBoard() {
 
     try {
       await boardsApi.delete(board._id);
-      
+
       // Emitir evento WebSocket para sincronizar otros clientes
       socketService.emitBoardDeleted(board._id);
-      
+
       // Remover de la lista
       const remainingBoards = boards.filter((b) => b._id !== board._id);
       setBoards(remainingBoards);
-      
+
       // Si es el tablero activo, cambiar al primero disponible
       if (activeBoard?._id === board._id) {
         if (remainingBoards.length > 0) {
@@ -344,7 +395,7 @@ export function KanbanBoard() {
           toast.success("Tablero por defecto creado");
         }
       }
-      
+
       toast.success(`Tablero "${board.name}" eliminado`);
     } catch (error) {
       console.error("Error eliminando tablero:", error);
@@ -481,7 +532,7 @@ export function KanbanBoard() {
             task._id === editingTask._id ? updatedTask : task
           )
         );
-        socketService.emitTaskUpdated(editingTask._id, data);
+        socketService.emitTaskUpdated(editingTask._id, activeBoard._id, data);
         toast.success("Tarea actualizada");
       } else {
         // Crear nueva tarea
@@ -492,7 +543,7 @@ export function KanbanBoard() {
         });
         setTasks((prev) => [...prev, newTask]);
         socketService.emitTaskCreated(newTask);
-        audioService.play('task'); // Sonido al crear tarea
+        audioService.play("task"); // Sonido al crear tarea
         toast.success("Tarea creada");
       }
       setDialogOpen(false);
@@ -505,11 +556,16 @@ export function KanbanBoard() {
   const handleDeleteTask = async (taskId: string) => {
     if (!confirm("¿Estás seguro de eliminar esta tarea?")) return;
 
+    if (!activeBoard) {
+      toast.error("No hay tablero activo");
+      return;
+    }
+
     try {
       await tasksApi.delete(taskId);
       setTasks((prev) => prev.filter((task) => task._id !== taskId));
-      socketService.emitTaskDeleted(taskId);
-      audioService.play('delete'); // Sonido al eliminar
+      socketService.emitTaskDeleted(taskId, activeBoard._id);
+      audioService.play("delete"); // Sonido al eliminar
       toast.success("Tarea eliminada");
     } catch (error) {
       console.error("Error eliminando tarea:", error);
@@ -518,12 +574,17 @@ export function KanbanBoard() {
   };
 
   const handleColorChange = async (taskId: string, color: string | null) => {
+    if (!activeBoard) {
+      toast.error("No hay tablero activo");
+      return;
+    }
+
     try {
       const updatedTask = await tasksApi.update(taskId, { color });
       setTasks((prev) =>
         prev.map((task) => (task._id === taskId ? updatedTask : task))
       );
-      socketService.emitTaskUpdated(taskId, { color });
+      socketService.emitTaskUpdated(taskId, activeBoard._id, { color });
       toast.success("Color actualizado");
     } catch (error) {
       console.error("Error actualizando color:", error);
@@ -548,13 +609,16 @@ export function KanbanBoard() {
     }
 
     try {
-      const updatedBoard = await boardsApi.addColumn(activeBoard._id, newColumnName.trim());
+      const updatedBoard = await boardsApi.addColumn(
+        activeBoard._id,
+        newColumnName.trim()
+      );
       setColumns(updatedBoard.columns);
       setActiveBoard(updatedBoard);
       setNewColumnName("");
       setIsAddingColumn(false);
-      socketService.emitColumnAdded(newColumnName.trim(), updatedBoard.columns);
-      audioService.play('column'); // Sonido al crear columna
+      socketService.emitColumnAdded(activeBoard._id, newColumnName.trim(), updatedBoard.columns);
+      audioService.play("column"); // Sonido al crear columna
       toast.success("Columna creada exitosamente");
     } catch (error) {
       console.error("Error agregando columna:", error);
@@ -583,10 +647,14 @@ export function KanbanBoard() {
     }
 
     try {
-      const updatedBoard = await boardsApi.renameColumn(activeBoard._id, oldName, newName.trim());
+      const updatedBoard = await boardsApi.renameColumn(
+        activeBoard._id,
+        oldName,
+        newName.trim()
+      );
       setColumns(updatedBoard.columns);
       setActiveBoard(updatedBoard);
-      
+
       // Actualizar tareas localmente
       setTasks((prev) =>
         prev.map((task) =>
@@ -594,7 +662,12 @@ export function KanbanBoard() {
         )
       );
 
-      socketService.emitColumnRenamed(oldName, newName.trim(), updatedBoard.columns);
+      socketService.emitColumnRenamed(
+        activeBoard._id,
+        oldName,
+        newName.trim(),
+        updatedBoard.columns
+      );
       toast.success(`Columna renombrada: "${oldName}" → "${newName}"`);
     } catch (error) {
       console.error("Error renombrando columna:", error);
@@ -609,7 +682,7 @@ export function KanbanBoard() {
     }
 
     const tasksInColumn = getTasksByColumn(columnName).length;
-    
+
     const confirmMessage =
       tasksInColumn > 0
         ? `¿Eliminar la columna "${columnName}" y sus ${tasksInColumn} tarea(s)?`
@@ -618,15 +691,18 @@ export function KanbanBoard() {
     if (!confirm(confirmMessage)) return;
 
     try {
-      const updatedBoard = await boardsApi.deleteColumn(activeBoard._id, columnName);
+      const updatedBoard = await boardsApi.deleteColumn(
+        activeBoard._id,
+        columnName
+      );
       setColumns(updatedBoard.columns);
       setActiveBoard(updatedBoard);
-      
+
       // Eliminar tareas de esta columna localmente
       setTasks((prev) => prev.filter((task) => task.column !== columnName));
 
-      socketService.emitColumnDeleted(columnName, updatedBoard.columns);
-      audioService.play('delete'); // Sonido al eliminar
+      socketService.emitColumnDeleted(activeBoard._id, columnName, updatedBoard.columns);
+      audioService.play("delete"); // Sonido al eliminar
       toast.success(`Columna "${columnName}" eliminada`);
     } catch (error) {
       console.error("Error eliminando columna:", error);
@@ -660,7 +736,7 @@ export function KanbanBoard() {
                   Colaboración en tiempo real
                 </p>
               </div>
-              
+
               {/* Selector de tableros */}
               {boards.length > 0 && (
                 <BoardSelector
@@ -671,9 +747,7 @@ export function KanbanBoard() {
                   onEditBoard={handleEditBoard}
                   onDeleteBoard={handleDeleteBoard}
                   taskCounts={
-                    activeBoard
-                      ? { [activeBoard._id]: tasks.length }
-                      : {}
+                    activeBoard ? { [activeBoard._id]: tasks.length } : {}
                   }
                 />
               )}
@@ -685,6 +759,48 @@ export function KanbanBoard() {
                   <span>{connectedUsers} conectado(s)</span>
                 </div>
               )}
+
+              {/* Status de autenticación */}
+              {isAuthenticated && user && (
+                <div className="flex items-center gap-2">
+                  <div className="text-sm text-muted-foreground">
+                    {user.walletAddress.slice(0, 6)}...
+                    {user.walletAddress.slice(-4)}
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={logout}
+                    className="text-xs"
+                  >
+                    Logout
+                  </Button>
+                </div>
+              )}
+
+              {/* Wallet Connect */}
+              <WalletConnect
+                onConnect={(address) => {
+                  console.log('Wallet conectada:', address);
+                  // No hacer auto-login automático, dejar que el usuario decida
+                }}
+                onDisconnect={() => {
+                  console.log('Wallet desconectada');
+                  // Logout se maneja automáticamente en AuthContext
+                }}
+              />
+
+              {/* Botón de Autenticación */}
+              {isConnected && !isAuthenticated && (
+                <Button
+                  onClick={login}
+                  disabled={authLoading}
+                  className="bg-green-600 hover:bg-green-700"
+                >
+                  {authLoading ? "Autenticando..." : "Autenticar"}
+                </Button>
+              )}
+
               <AudioSettings />
               <Button variant="outline" size="icon" onClick={loadTasks}>
                 <RefreshCw className="h-4 w-4" />
@@ -697,12 +813,13 @@ export function KanbanBoard() {
 
       {/* Board */}
       <div className="container mx-auto px-4 py-6">
-        <DndContext
-          sensors={sensors}
-          onDragStart={handleDragStart}
-          onDragEnd={handleDragEnd}
-        >
-          <div className="flex gap-4 overflow-x-auto pb-4">
+        {activeBoard ? (
+          <DndContext
+            sensors={sensors}
+            onDragStart={handleDragStart}
+            onDragEnd={handleDragEnd}
+          >
+            <div className="flex gap-4 overflow-x-auto pb-4">
             {columns.map((column) => (
               <KanbanColumn
                 key={column}
@@ -716,7 +833,7 @@ export function KanbanBoard() {
                 onDeleteColumn={handleDeleteColumn}
               />
             ))}
-            
+
             {/* Botón para agregar columna */}
             {isAddingColumn ? (
               <Card className="flex-shrink-0 w-[280px]">
@@ -782,6 +899,27 @@ export function KanbanBoard() {
             ) : null}
           </DragOverlay>
         </DndContext>
+        ) : (
+          <div className="flex flex-col items-center justify-center min-h-[400px] text-center">
+            <div className="mb-4">
+              <h2 className="text-2xl font-bold text-muted-foreground mb-2">
+                No hay tableros disponibles
+              </h2>
+              <p className="text-muted-foreground mb-6">
+                Conecta tu wallet para crear un tablero privado o espera a que se cree uno público
+              </p>
+            </div>
+            {isAuthenticated && (
+              <Button
+                onClick={() => setCreateBoardDialogOpen(true)}
+                className="bg-primary hover:bg-primary/90"
+              >
+                <Plus className="h-4 w-4 mr-2" />
+                Crear Tablero
+              </Button>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Task Dialog */}

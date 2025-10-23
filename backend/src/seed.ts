@@ -23,10 +23,16 @@ async function seed() {
 
     logger.log('🌱 Iniciando seed de base de datos...');
 
-    // Crear tablero por defecto
+    // Crear tablero público por defecto
     const board = await boardsService.create({
-      name: 'Tablero Principal',
+      name: 'Tablero Público',
       columns: ['Por Hacer', 'En Progreso', 'Completado'],
+    });
+
+    // Marcar el tablero como público usando el servicio
+    await boardsService.update((board as any)._id.toString(), {
+      name: 'Tablero Público',
+      isPublic: true,
     });
 
     logger.log(`✅ Tablero creado: ${board.name}`);

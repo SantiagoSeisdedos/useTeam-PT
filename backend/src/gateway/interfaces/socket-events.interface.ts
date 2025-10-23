@@ -3,21 +3,25 @@ export interface TaskCreatedEvent {
     title: string;
     description: string;
     column: string;
+    boardId: string;
     [key: string]: any;
   };
 }
 
 export interface TaskUpdatedEvent {
   taskId: string;
+  boardId: string;
   updates: Record<string, any>;
 }
 
 export interface TaskDeletedEvent {
   taskId: string;
+  boardId: string;
 }
 
 export interface TaskMovedEvent {
   taskId: string;
+  boardId: string;
   sourceColumn: string;
   destinationColumn: string;
   sourceIndex: number;
@@ -26,17 +30,20 @@ export interface TaskMovedEvent {
 
 // Column Events
 export interface ColumnAddedEvent {
+  boardId: string;
   columnName: string;
   columns: string[];
 }
 
 export interface ColumnRenamedEvent {
+  boardId: string;
   oldName: string;
   newName: string;
   columns: string[];
 }
 
 export interface ColumnDeletedEvent {
+  boardId: string;
   columnName: string;
   columns: string[];
 }

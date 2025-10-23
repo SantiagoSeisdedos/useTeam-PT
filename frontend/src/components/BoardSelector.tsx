@@ -71,7 +71,7 @@ export function BoardSelector({
               </DropdownMenuItem>
               
               {/* Acciones del tablero (solo tablero activo) */}
-              {activeBoard?._id === board._id && onEditBoard && onDeleteBoard && (
+              {activeBoard?._id === board._id && onEditBoard && onDeleteBoard && !board.isPublic && (
                 <div className="absolute right-2 top-2 opacity-0 group-hover:opacity-100 transition-opacity flex gap-1 z-10">
                   <Button
                     size="icon"

@@ -54,17 +54,32 @@ class SocketService {
     }
   }
 
+  // Métodos para manejar rooms de tableros
+  joinBoard(boardId: string) {
+    if (this.socket?.connected) {
+      this.socket.emit('join-board', { boardId });
+      console.log(`Uniéndose al tablero: ${boardId}`);
+    }
+  }
+
+  leaveBoard(boardId: string) {
+    if (this.socket?.connected) {
+      this.socket.emit('leave-board', { boardId });
+      console.log(`Saliendo del tablero: ${boardId}`);
+    }
+  }
+
   // Eventos emitidos desde el cliente
   emitTaskCreated(task: Task) {
     this.socket?.emit("task-created", { task });
   }
 
-  emitTaskUpdated(taskId: string, updates: Partial<Task>) {
-    this.socket?.emit("task-updated", { taskId, updates });
+  emitTaskUpdated(taskId: string, boardId: string, updates: Partial<Task>) {
+    this.socket?.emit("task-updated", { taskId, boardId, updates });
   }
 
-  emitTaskDeleted(taskId: string) {
-    this.socket?.emit("task-deleted", { taskId });
+  emitTaskDeleted(taskId: string, boardId: string) {
+    this.socket?.emit("task-deleted", { taskId, boardId });
   }
 
   emitTaskMoved(data: SocketTaskMovedEvent) {
@@ -72,16 +87,16 @@ class SocketService {
   }
 
   // Eventos de columnas emitidos desde el cliente
-  emitColumnAdded(columnName: string, columns: string[]) {
-    this.socket?.emit("column-added", { columnName, columns });
+  emitColumnAdded(boardId: string, columnName: string, columns: string[]) {
+    this.socket?.emit("column-added", { boardId, columnName, columns });
   }
 
-  emitColumnRenamed(oldName: string, newName: string, columns: string[]) {
-    this.socket?.emit("column-renamed", { oldName, newName, columns });
+  emitColumnRenamed(boardId: string, oldName: string, newName: string, columns: string[]) {
+    this.socket?.emit("column-renamed", { boardId, oldName, newName, columns });
   }
 
-  emitColumnDeleted(columnName: string, columns: string[]) {
-    this.socket?.emit("column-deleted", { columnName, columns });
+  emitColumnDeleted(boardId: string, columnName: string, columns: string[]) {
+    this.socket?.emit("column-deleted", { boardId, columnName, columns });
   }
 
   // Eventos de tableros emitidos desde el cliente

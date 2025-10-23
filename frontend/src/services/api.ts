@@ -6,6 +6,7 @@ import type {
   UpdateTaskDto,
   MoveTaskDto,
   ExportBacklogDto,
+  User,
 } from "../types";
 import { API_URL } from "../config/api";
 
@@ -20,14 +21,14 @@ const api = axios.create({
 export const tasksApi = {
   // Obtener todas las tareas (opcionalmente filtradas por board)
   getAll: async (boardId?: string): Promise<Task[]> => {
-    const url = boardId ? `/tasks?boardId=${boardId}` : "/tasks";
+    const url = boardId ? `/api/tasks?boardId=${boardId}` : "/api/tasks";
     const response = await api.get<Task[]>(url);
     return response.data;
   },
 
   // Obtener tareas por columna y board
   getByColumn: async (column: string, boardId?: string): Promise<Task[]> => {
-    let url = `/tasks?column=${encodeURIComponent(column)}`;
+    let url = `/api/tasks?column=${encodeURIComponent(column)}`;
     if (boardId) {
       url += `&boardId=${boardId}`;
     }
@@ -37,31 +38,31 @@ export const tasksApi = {
 
   // Obtener una tarea por ID
   getById: async (id: string): Promise<Task> => {
-    const response = await api.get<Task>(`/tasks/${id}`);
+    const response = await api.get<Task>(`/api/tasks/${id}`);
     return response.data;
   },
 
   // Crear una nueva tarea
   create: async (data: CreateTaskDto): Promise<Task> => {
-    const response = await api.post<Task>("/tasks", data);
+    const response = await api.post<Task>("/api/tasks", data);
     return response.data;
   },
 
   // Actualizar una tarea
   update: async (id: string, data: UpdateTaskDto): Promise<Task> => {
-    const response = await api.patch<Task>(`/tasks/${id}`, data);
+    const response = await api.patch<Task>(`/api/tasks/${id}`, data);
     return response.data;
   },
 
   // Mover una tarea (drag & drop)
   move: async (id: string, data: MoveTaskDto): Promise<Task> => {
-    const response = await api.patch<Task>(`/tasks/${id}/move`, data);
+    const response = await api.patch<Task>(`/api/tasks/${id}/move`, data);
     return response.data;
   },
 
   // Eliminar una tarea
   delete: async (id: string): Promise<Task> => {
-    const response = await api.delete<Task>(`/tasks/${id}`);
+    const response = await api.delete<Task>(`/api/tasks/${id}`);
     return response.data;
   },
 };
@@ -70,49 +71,49 @@ export const tasksApi = {
 export const boardsApi = {
   // Obtener todos los tableros
   getAll: async (): Promise<Board[]> => {
-    const response = await api.get<Board[]>("/boards");
+    const response = await api.get<Board[]>("/api/boards");
     return response.data;
   },
 
   // Obtener un tablero por ID
   getById: async (id: string): Promise<Board> => {
-    const response = await api.get<Board>(`/boards/${id}`);
+    const response = await api.get<Board>(`/api/boards/${id}`);
     return response.data;
   },
 
   // Crear un tablero
   create: async (data: { name: string; columns: string[] }): Promise<Board> => {
-    const response = await api.post<Board>("/boards", data);
+    const response = await api.post<Board>("/api/boards", data);
     return response.data;
   },
 
   // Actualizar un tablero
   update: async (id: string, data: { name?: string }): Promise<Board> => {
-    const response = await api.patch<Board>(`/boards/${id}`, data);
+    const response = await api.patch<Board>(`/api/boards/${id}`, data);
     return response.data;
   },
 
   // Eliminar un tablero
   delete: async (id: string): Promise<Board> => {
-    const response = await api.delete<Board>(`/boards/${id}`);
+    const response = await api.delete<Board>(`/api/boards/${id}`);
     return response.data;
   },
 
   // Agregar una columna
   addColumn: async (id: string, columnName: string): Promise<Board> => {
-    const response = await api.post<Board>(`/boards/${id}/columns`, { columnName });
+    const response = await api.post<Board>(`/api/boards/${id}/columns`, { columnName });
     return response.data;
   },
 
   // Renombrar una columna
   renameColumn: async (id: string, oldName: string, newName: string): Promise<Board> => {
-    const response = await api.patch<Board>(`/boards/${id}/columns/rename`, { oldName, newName });
+    const response = await api.patch<Board>(`/api/boards/${id}/columns/rename`, { oldName, newName });
     return response.data;
   },
 
   // Eliminar una columna
   deleteColumn: async (id: string, columnName: string): Promise<Board> => {
-    const response = await api.delete<Board>(`/boards/${id}/columns/${encodeURIComponent(columnName)}`);
+    const response = await api.delete<Board>(`/api/boards/${id}/columns/${encodeURIComponent(columnName)}`);
     return response.data;
   },
 };
@@ -135,7 +136,7 @@ export const aiApi = {
     openai: { available: boolean; models: string[] };
     gemini: { available: boolean; models: string[] };
   }> => {
-    const response = await api.get("/ai/status");
+    const response = await api.get("/api/ai/status");
     return response.data;
   },
 
@@ -158,7 +159,45 @@ export const aiApi = {
     mode: string;
     model: string;
   }> => {
-    const response = await api.post("/ai/improve-description", data);
+    const response = await api.post("/api/ai/improve-description", data);
     return response.data;
   },
 };
+
+
+
+
+// Auth API
+export const authApi = {
+  getNonce: async (walletAddress: string): Promise<{ nonce: string }> => {
+    const response = await api.post("/auth/nonce", { walletAddress });
+    return response.data;
+  },
+
+  verify: async (
+    walletAddress: string,
+    signature: string,
+    message: string
+  ): Promise<{ token: string; user: User }> => {
+    const response = await api.post("/auth/verify", {
+      walletAddress,
+      signature,
+      message,
+    });
+    return response.data;
+  },
+
+  getProfile: async (): Promise<User> => {
+    const response = await api.get("/auth/profile");
+    return response.data;
+  },
+};
+
+// Interceptor para agregar token JWT a todas las peticiones
+api.interceptors.request.use((config) => {
+  const token = localStorage.getItem("auth_token");
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`;
+  }
+  return config;
+});
