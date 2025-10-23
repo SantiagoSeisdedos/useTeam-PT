@@ -6,13 +6,14 @@ export class OptionalJwtAuthGuard extends AuthGuard('jwt') {
   private readonly logger = new Logger(OptionalJwtAuthGuard.name);
 
   // Override handleRequest para no lanzar error si no hay token
-  handleRequest(err: any, user: any, info: any, context: ExecutionContext) {
+  handleRequest(err: any, user: any, info: any, _context: ExecutionContext) {
     this.logger.log(
       `OptionalJwtAuthGuard: err=${err}, user=${user ? user.userId : 'null'}, info=${info?.message || 'none'}`,
     );
 
     // Si hay error o no hay usuario, simplemente retorna null
     // No lanza excepción
+
     return user || null;
   }
 
@@ -23,7 +24,7 @@ export class OptionalJwtAuthGuard extends AuthGuard('jwt') {
       // Intenta autenticar
       const result = await super.canActivate(context);
       this.logger.log(
-        `OptionalJwtAuthGuard: Resultado autenticación: ${result}`,
+        `OptionalJwtAuthGuard: Resultado autenticación: ${String(result)}`,
       );
       return result as boolean;
     } catch (err) {

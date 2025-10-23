@@ -30,10 +30,13 @@ export class BoardsInitService implements OnModuleInit {
         });
 
         // Marcar como público (sin owner = público por defecto)
-        await this.boardsService.update((defaultBoard as any)._id.toString(), {
-          name: 'Tablero Público',
-          isPublic: true,
-        });
+        const boardId = (defaultBoard as any)._id?.toString();
+        if (boardId) {
+          await this.boardsService.update(boardId, {
+            name: 'Tablero Público',
+            isPublic: true,
+          });
+        }
 
         this.logger.log(`✅ Tablero público creado: ${defaultBoard.name}`);
       } else {

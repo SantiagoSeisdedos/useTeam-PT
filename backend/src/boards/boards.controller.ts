@@ -24,7 +24,7 @@ export class BoardsController {
 
   @Post()
   @UseGuards(JwtAuthGuard) // Requiere autenticación para crear tableros
-  create(@Body() createBoardDto: CreateBoardDto, @Request() req) {
+  create(@Body() createBoardDto: CreateBoardDto, @Request() req: any) {
     return this.boardsService.create(createBoardDto, req.user.userId);
   }
 
@@ -80,7 +80,7 @@ export class BoardsController {
   shareBoard(
     @Param('id') id: string,
     @Body() body: { targetUserId: string },
-    @Request() req,
+    @Request() req: any,
   ) {
     return this.boardsService.shareBoard(
       id,
@@ -94,7 +94,7 @@ export class BoardsController {
   unshareBoard(
     @Param('id') id: string,
     @Body() body: { targetUserId: string },
-    @Request() req,
+    @Request() req: any,
   ) {
     return this.boardsService.unshareBoard(
       id,
@@ -105,7 +105,7 @@ export class BoardsController {
 
   @Post(':id/toggle-public')
   @UseGuards(JwtAuthGuard) // Requiere autenticación
-  togglePublic(@Param('id') id: string, @Request() req) {
+  togglePublic(@Param('id') id: string, @Request() req: any) {
     return this.boardsService.togglePublic(id, req.user.userId);
   }
 }

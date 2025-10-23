@@ -21,8 +21,8 @@ export class TaskAccessGuard implements CanActivate {
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const request = context.switchToHttp().getRequest();
-    const taskId = request.params.id;
-    const userId = request.user?.userId;
+    const taskId = request.params?.id as string;
+    const userId = request.user?.userId as string;
 
     this.logger.log(`TaskAccessGuard: taskId=${taskId}, userId=${userId}`);
 
@@ -36,7 +36,7 @@ export class TaskAccessGuard implements CanActivate {
       throw new ForbiddenException('Tarea no encontrada');
     }
 
-    this.logger.log(`TaskAccessGuard: task.boardId=${task.boardId}`);
+    this.logger.log(`TaskAccessGuard: task.boardId=${task.boardId.toString()}`);
 
     // Obtener el tablero
     const board = await this.boardModel.findById(task.boardId).exec();
@@ -45,7 +45,7 @@ export class TaskAccessGuard implements CanActivate {
     }
 
     this.logger.log(
-      `TaskAccessGuard: board.isPublic=${board.isPublic}, board.owner=${board.owner}`,
+      `TaskAccessGuard: board.isPublic=${board.isPublic}, board.owner=${board.owner?.toString() || 'null'}`,
     );
 
     // Solo tableros públicos son accesibles por usuarios no autenticados
@@ -66,7 +66,7 @@ export class TaskAccessGuard implements CanActivate {
     const userObjectId = new Types.ObjectId(userId);
     const hasAccess =
       board.owner?.equals(userObjectId) ||
-      board.sharedWith.some((id) => id.equals(userObjectId));
+      board.sharedWith.some((id: Types.ObjectId) => id.equals(userObjectId));
 
     this.logger.log(`TaskAccessGuard: hasAccess=${hasAccess}`);
 

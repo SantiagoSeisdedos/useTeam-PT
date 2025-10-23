@@ -70,7 +70,7 @@ export class KanbanGateway implements OnGatewayConnection, OnGatewayDisconnect {
     client.join(`board-${data.boardId}`);
 
     // Confirmar que se unió al room
-    client.emit('joined-board', {
+    void client.emit('joined-board', {
       boardId: data.boardId,
       timestamp: new Date().toISOString(),
     });
@@ -88,7 +88,7 @@ export class KanbanGateway implements OnGatewayConnection, OnGatewayDisconnect {
     client.leave(`board-${data.boardId}`);
 
     // Confirmar que salió del room
-    client.emit('left-board', {
+    void client.emit('left-board', {
       boardId: data.boardId,
       timestamp: new Date().toISOString(),
     });

@@ -124,7 +124,7 @@ export const exportApi = {
   exportBacklog: async (
     data: ExportBacklogDto = {}
   ): Promise<{ success: boolean; message: string; tasksExported: number }> => {
-    const response = await api.post("/export/backlog", data);
+    const response = await api.post("/api/export/backlog", data);
     return response.data;
   },
 };

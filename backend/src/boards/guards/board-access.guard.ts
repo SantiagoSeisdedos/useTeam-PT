@@ -12,8 +12,8 @@ export class BoardAccessGuard implements CanActivate {
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const request = context.switchToHttp().getRequest();
-    const boardId = request.params.id;
-    const userId = request.user?.userId;
+    const boardId = request.params?.id as string;
+    const userId = request.user?.userId as string;
 
     if (!boardId) {
       return true; // Si no hay boardId, dejar que pase (para endpoints que no lo requieren)

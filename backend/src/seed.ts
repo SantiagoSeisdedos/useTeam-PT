@@ -1,7 +1,3 @@
-/* eslint-disable @typescript-eslint/no-unsafe-assignment */
-/* eslint-disable @typescript-eslint/no-unsafe-member-access */
-/* eslint-disable @typescript-eslint/no-unsafe-call */
-
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { TasksService } from './tasks/tasks.service';
@@ -30,14 +26,15 @@ async function seed() {
     });
 
     // Marcar el tablero como público usando el servicio
-    await boardsService.update((board as any)._id.toString(), {
-      name: 'Tablero Público',
-      isPublic: true,
-    });
+    const boardId = (board as any)._id?.toString();
+    if (boardId) {
+      await boardsService.update(boardId, {
+        name: 'Tablero Público',
+        isPublic: true,
+      });
+    }
 
     logger.log(`✅ Tablero creado: ${board.name}`);
-
-    const boardId = (board as any)._id.toString();
 
     // Crear tareas de ejemplo
     const sampleTasks = [
@@ -47,14 +44,14 @@ async function seed() {
           'Inicializar proyecto con Create React App y configurar dependencias',
         column: 'Completado',
         position: 0,
-        boardId: boardId,
+        boardId: (board as any)._id.toString(),
       },
       {
         title: 'Implementar tablero Kanban',
         description: 'Crear componentes del tablero con drag & drop',
         column: 'En Progreso',
         position: 0,
-        boardId: boardId,
+        boardId: (board as any)._id.toString(),
       },
       {
         title: 'Integrar WebSocket',
@@ -62,35 +59,35 @@ async function seed() {
           'Conectar cliente Socket.io para colaboración en tiempo real',
         column: 'En Progreso',
         position: 1,
-        boardId: boardId,
+        boardId: (board as any)._id.toString(),
       },
       {
         title: 'Diseñar interfaz de usuario',
         description: 'Crear diseño moderno y responsive del tablero',
         column: 'Por Hacer',
         position: 0,
-        boardId: boardId,
+        boardId: (board as any)._id.toString(),
       },
       {
         title: 'Agregar botón de exportación',
         description: 'Implementar botón para exportar backlog vía n8n',
         column: 'Por Hacer',
         position: 1,
-        boardId: boardId,
+        boardId: (board as any)._id.toString(),
       },
       {
         title: 'Configurar notificaciones',
         description: 'Mostrar toast notifications para eventos en tiempo real',
         column: 'Por Hacer',
         position: 2,
-        boardId: boardId,
+        boardId: (board as any)._id.toString(),
       },
       {
         title: 'Testing E2E',
         description: 'Escribir tests de integración para el flujo completo',
         column: 'Por Hacer',
         position: 3,
-        boardId: boardId,
+        boardId: (board as any)._id.toString(),
       },
     ];
 
