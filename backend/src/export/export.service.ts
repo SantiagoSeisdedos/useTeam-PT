@@ -30,9 +30,16 @@ export class ExportService {
     this.logger.log('Iniciando exportación de backlog...');
 
     try {
-      // Obtener todas las tareas de la base de datos
+      // Construir filtro para tareas
+      const filter: any = {};
+      if (exportDto.boardId) {
+        filter.boardId = exportDto.boardId;
+        this.logger.log(`Filtrando tareas por boardId: ${exportDto.boardId}`);
+      }
+
+      // Obtener tareas de la base de datos (todas o filtradas por tablero)
       const tasks = await this.taskModel
-        .find()
+        .find(filter)
         .sort({ column: 1, position: 1 })
         .exec();
 
@@ -43,14 +50,18 @@ export class ExportService {
         title: task.title,
         description: task.description,
         column: task.column,
+        boardId: task.boardId,
         fecha_creacion: task.createdAt,
       }));
+
       // Preparar payload para n8n
       const payload = {
         tasks: formattedTasks,
         email: exportDto.email || null,
+        boardId: exportDto.boardId || null,
         timestamp: new Date().toISOString(),
         totalTasks: tasks.length,
+        exportType: exportDto.boardId ? 'board' : 'all',
       };
       // Disparar webhook de n8n
       this.logger.log(`Disparando webhook n8n: ${this.n8nWebhookUrl}`);

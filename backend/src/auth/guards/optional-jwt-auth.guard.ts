@@ -20,18 +20,12 @@ export class OptionalJwtAuthGuard extends AuthGuard('jwt') {
   // Override canActivate para manejar autenticación opcional
   async canActivate(context: ExecutionContext): Promise<boolean> {
     try {
-      this.logger.log('OptionalJwtAuthGuard: Intentando autenticar...');
-      // Intenta autenticar
       const result = await super.canActivate(context);
-      this.logger.log(
-        `OptionalJwtAuthGuard: Resultado autenticación: ${String(result)}`,
-      );
       return result as boolean;
     } catch (err) {
-      this.logger.log(
+      this.logger.error(
         `OptionalJwtAuthGuard: Error en autenticación: ${err.message}`,
       );
-      // Si falla la autenticación, permite el acceso pero sin usuario
       return true;
     }
   }

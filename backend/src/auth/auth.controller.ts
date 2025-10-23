@@ -3,6 +3,7 @@ import {
   Post,
   Get,
   Body,
+  Param,
   UseGuards,
   Request,
   HttpCode,
@@ -65,5 +66,22 @@ export class AuthController {
     @Body() data: { username?: string; email?: string },
   ) {
     return this.authService.updateProfile(req.user.userId, data);
+  }
+
+  /**
+   * Busca un usuario por wallet address
+   */
+  @Get('user-by-wallet/:walletAddress')
+  async getUserByWallet(@Param('walletAddress') walletAddress: string) {
+    if (!walletAddress) {
+      throw new Error('Wallet address es requerida');
+    }
+
+    const user = await this.authService.getUserByWallet(walletAddress);
+    if (!user) {
+      throw new Error('Usuario no encontrado');
+    }
+
+    return { userId: (user as any)._id, walletAddress: user.walletAddress };
   }
 }

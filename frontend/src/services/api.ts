@@ -70,8 +70,9 @@ export const tasksApi = {
 // Boards API
 export const boardsApi = {
   // Obtener todos los tableros
-  getAll: async (): Promise<Board[]> => {
-    const response = await api.get<Board[]>("/api/boards");
+  getAll: async (userId?: string): Promise<Board[]> => {
+    const url = userId ? `/api/boards?userId=${userId}` : "/api/boards";
+    const response = await api.get<Board[]>(url);
     return response.data;
   },
 
@@ -114,6 +115,18 @@ export const boardsApi = {
   // Eliminar una columna
   deleteColumn: async (id: string, columnName: string): Promise<Board> => {
     const response = await api.delete<Board>(`/api/boards/${id}/columns/${encodeURIComponent(columnName)}`);
+    return response.data;
+  },
+
+  // Compartir tablero con otro usuario
+  shareBoard: async (id: string, targetUserId: string): Promise<Board> => {
+    const response = await api.post<Board>(`/api/boards/${id}/share`, { targetUserId });
+    return response.data;
+  },
+
+  // Remover acceso compartido
+  unshareBoard: async (id: string, targetUserId: string): Promise<Board> => {
+    const response = await api.post<Board>(`/api/boards/${id}/unshare`, { targetUserId });
     return response.data;
   },
 };
@@ -167,6 +180,39 @@ export const aiApi = {
 
 
 
+// Invitations API
+export const invitationsApi = {
+  createInvitation: async (boardId: string, invitedUserId: string) => {
+    const response = await api.post("/api/invitations", { boardId, invitedUserId });
+    return response.data;
+  },
+
+  getPendingInvitations: async () => {
+    const response = await api.get("/api/invitations/pending");
+    return response.data;
+  },
+
+  getSentInvitations: async () => {
+    const response = await api.get("/api/invitations/sent");
+    return response.data;
+  },
+
+  acceptInvitation: async (invitationId: string) => {
+    const response = await api.patch(`/api/invitations/${invitationId}/accept`);
+    return response.data;
+  },
+
+  rejectInvitation: async (invitationId: string) => {
+    const response = await api.patch(`/api/invitations/${invitationId}/reject`);
+    return response.data;
+  },
+
+  leaveBoard: async (boardId: string) => {
+    const response = await api.post(`/api/invitations/${boardId}/leave`);
+    return response.data;
+  },
+};
+
 // Auth API
 export const authApi = {
   getNonce: async (walletAddress: string): Promise<{ nonce: string }> => {
@@ -189,6 +235,12 @@ export const authApi = {
 
   getProfile: async (): Promise<User> => {
     const response = await api.get("/auth/profile");
+    return response.data;
+  },
+
+  // Buscar usuario por wallet address
+  getUserByWallet: async (walletAddress: string): Promise<{ userId: string; walletAddress: string }> => {
+    const response = await api.get(`/auth/user-by-wallet/${walletAddress}`);
     return response.data;
   },
 };

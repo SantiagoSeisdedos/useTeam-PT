@@ -19,6 +19,9 @@ import {
   ColumnDeletedEvent,
   BoardUpdatedEvent,
   BoardDeletedEvent,
+  BoardInvitedEvent,
+  BoardInvitationAcceptedEvent,
+  BoardInvitationDeclinedEvent,
 } from './interfaces/socket-events.interface';
 
 /**
@@ -264,6 +267,62 @@ export class KanbanGateway implements OnGatewayConnection, OnGatewayDisconnect {
     client.to(`board-${data.boardId}`).emit('board-deleted', {
       boardId: data.boardId,
       userId: client.id,
+      timestamp: new Date().toISOString(),
+    });
+  }
+
+  /**
+   * Evento cuando se invita a un usuario a un tablero
+   */
+  @SubscribeMessage('board-invited')
+  handleBoardInvited(
+    @MessageBody() data: BoardInvitedEvent,
+    @ConnectedSocket() client: Socket,
+  ) {
+    this.logger.log(
+      `Usuario invitado a tablero por ${client.id}: ${data.boardId}`,
+    );
+    // Notificar al usuario invitado
+    client.to(`user-${data.invitedUser}`).emit('board-invited', {
+      boardId: data.boardId,
+      boardName: data.boardName,
+      invitedBy: data.invitedBy,
+      timestamp: new Date().toISOString(),
+    });
+  }
+
+  /**
+   * Evento cuando se acepta una invitación
+   */
+  @SubscribeMessage('board-invitation-accepted')
+  handleBoardInvitationAccepted(
+    @MessageBody() data: BoardInvitationAcceptedEvent,
+    @ConnectedSocket() client: Socket,
+  ) {
+    this.logger.log(`Invitación aceptada por ${client.id}: ${data.boardId}`);
+    // Notificar al propietario del tablero
+    client.to(`user-${data.ownerId}`).emit('board-invitation-accepted', {
+      boardId: data.boardId,
+      boardName: data.boardName,
+      acceptedBy: data.acceptedBy,
+      timestamp: new Date().toISOString(),
+    });
+  }
+
+  /**
+   * Evento cuando se rechaza una invitación
+   */
+  @SubscribeMessage('board-invitation-declined')
+  handleBoardInvitationDeclined(
+    @MessageBody() data: BoardInvitationDeclinedEvent,
+    @ConnectedSocket() client: Socket,
+  ) {
+    this.logger.log(`Invitación rechazada por ${client.id}: ${data.boardId}`);
+    // Notificar al propietario del tablero
+    client.to(`user-${data.ownerId}`).emit('board-invitation-declined', {
+      boardId: data.boardId,
+      boardName: data.boardName,
+      declinedBy: data.declinedBy,
       timestamp: new Date().toISOString(),
     });
   }

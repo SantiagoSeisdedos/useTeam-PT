@@ -18,6 +18,7 @@ export interface Board {
   updatedAt: string;
   isPublic: boolean;
   owner: User | null;
+  sharedWith?: User[];
 }
 
 export interface CreateTaskDto {

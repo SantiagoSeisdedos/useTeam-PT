@@ -57,3 +57,25 @@ export interface BoardUpdatedEvent {
 export interface BoardDeletedEvent {
   boardId: string;
 }
+
+// Invitation Events
+export interface BoardInvitedEvent {
+  boardId: string;
+  boardName: string;
+  invitedBy: string;
+  invitedUser: string;
+}
+
+export interface BoardInvitationAcceptedEvent {
+  boardId: string;
+  boardName: string;
+  acceptedBy: string;
+  ownerId: string;
+}
+
+export interface BoardInvitationDeclinedEvent {
+  boardId: string;
+  boardName: string;
+  declinedBy: string;
+  ownerId: string;
+}

@@ -207,13 +207,13 @@ export class BoardsService {
   }
 
   /**
-   * Compartir tablero con otro usuario
+   * Compartir tablero con otro usuario (crear invitación)
    */
   async shareBoard(
     boardId: string,
     targetUserId: string,
     requestUserId: string,
-  ): Promise<Board> {
+  ): Promise<{ message: string; invitationId: string }> {
     // Verificar que el solicitante sea el owner
     if (!(await this.isOwner(boardId, requestUserId))) {
       throw new ForbiddenException(
@@ -233,8 +233,13 @@ export class BoardsService {
       throw new Error('El tablero ya está compartido con este usuario');
     }
 
-    board.sharedWith.push(targetUserObjectId);
-    return board.save();
+    // Nota: La creación de la invitación se maneja ahora en el InvitationsService
+    // Este método solo valida que el usuario tenga permisos para compartir
+    return {
+      message:
+        'Invitación enviada correctamente. El usuario debe aceptarla para obtener acceso.',
+      invitationId: 'pending', // Se reemplazará con el ID real cuando se implemente en el controlador
+    };
   }
 
   /**

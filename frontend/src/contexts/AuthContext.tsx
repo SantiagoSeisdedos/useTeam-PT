@@ -16,8 +16,11 @@ interface AuthContextType {
   token: string | null;
   isAuthenticated: boolean;
   isLoading: boolean;
+  isInitializing: boolean;
   login: () => Promise<void>;
   logout: () => void;
+  autoLogin: boolean;
+  setAutoLogin: (enabled: boolean) => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -26,6 +29,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [token, setToken] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [isInitializing, setIsInitializing] = useState(true);
+  const [autoLogin, setAutoLoginState] = useState(true);
   const { address, isConnected } = useAccount();
   const { signMessageAsync } = useSignMessage();
 
@@ -35,17 +40,60 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const storedUser = localStorage.getItem("auth_user");
 
     if (storedToken && storedUser) {
-      setToken(storedToken);
-      setUser(JSON.parse(storedUser));
+      // Verificar si el token sigue siendo válido
+      verifyToken(storedToken, JSON.parse(storedUser));
+    } else {
+      // Si no hay token almacenado, marcar que la inicialización terminó
+      setIsInitializing(false);
     }
   }, []);
 
+  // Función para verificar si el token sigue siendo válido
+  const verifyToken = async (tokenValue: string, userData: User) => {
+    try {
+      // Intentar hacer una llamada al backend para verificar el token
+      await authApi.getProfile();
+      // Si la llamada es exitosa, el token es válido
+      setToken(tokenValue);
+      setUser(userData);
+    } catch (error) {
+      console.error("Error verifying token:", error);
+      // Si el token no es válido, limpiar el localStorage
+      localStorage.removeItem("auth_token");
+      localStorage.removeItem("auth_user");
+      setToken(null);
+      setUser(null);
+    } finally {
+      // Marcar que la inicialización terminó
+      setIsInitializing(false);
+    }
+  };
+
   // Auto-logout si la wallet se desconecta
   useEffect(() => {
-    if (!isConnected && user) {
+    if (!isConnected && user && !token) {
+      // Solo hacer logout si no hay token válido
       logout();
     }
-  }, [isConnected, user]);
+  }, [isConnected, user, token]);
+
+  // Auto-login cuando se conecta la wallet
+  useEffect(() => {
+    // Solo ejecutar auto-login si:
+    // 1. No se está inicializando
+    // 2. Está conectado y tiene dirección
+    // 3. No tiene usuario o token válidos
+    // 4. No está cargando
+    if (
+      !isInitializing &&
+      isConnected &&
+      address &&
+      (!user?._id || !token) &&
+      !isLoading
+    ) {
+      login();
+    }
+  }, [isConnected, address, user, token, isLoading, isInitializing, autoLogin]);
 
   const login = async () => {
     if (!address || !isConnected) {
@@ -98,6 +146,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     toast.info("Sesión cerrada");
   };
 
+  const setAutoLogin = (enabled: boolean) => {
+    setAutoLoginState(enabled);
+    localStorage.setItem("auto_login", enabled.toString());
+  };
+
   return (
     <AuthContext.Provider
       value={{
@@ -105,8 +158,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         token,
         isAuthenticated: !!user && !!token,
         isLoading,
+        isInitializing,
         login,
         logout,
+        autoLogin,
+        setAutoLogin,
       }}
     >
       {children}

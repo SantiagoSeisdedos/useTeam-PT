@@ -1,6 +1,11 @@
 import { io, Socket } from "socket.io-client";
 import { WS_URL } from "../config/api";
 import type {
+  BoardInvitedEvent,
+  BoardInvitationAcceptedEvent,
+  BoardInvitationDeclinedEvent,
+} from "../../../backend/src/gateway/interfaces/socket-events.interface";
+import type {
   Task,
   SocketTaskEvent,
   SocketTaskUpdatedEvent,
@@ -17,7 +22,6 @@ class SocketService {
 
   connect() {
     if (this.socket?.connected) {
-      console.log("Socket already connected");
       return;
     }
 
@@ -28,13 +32,9 @@ class SocketService {
       reconnectionDelay: 1000,
     });
 
-    this.socket.on("connect", () => {
-      console.log("WebSocket conectado:", this.socket?.id);
-    });
+    this.socket.on("connect", () => {});
 
-    this.socket.on("disconnect", () => {
-      console.log("WebSocket desconectado");
-    });
+    this.socket.on("disconnect", () => {});
 
     this.socket.on("connect_error", (error) => {
       console.error("Error de conexión WebSocket:", error);
@@ -42,7 +42,6 @@ class SocketService {
 
     // Re-registrar listeners después de reconectar
     this.socket.on("reconnect", () => {
-      console.log("🔄 WebSocket reconectado");
       this.reattachListeners();
     });
   }
@@ -57,15 +56,13 @@ class SocketService {
   // Métodos para manejar rooms de tableros
   joinBoard(boardId: string) {
     if (this.socket?.connected) {
-      this.socket.emit('join-board', { boardId });
-      console.log(`Uniéndose al tablero: ${boardId}`);
+      this.socket.emit("join-board", { boardId });
     }
   }
 
   leaveBoard(boardId: string) {
     if (this.socket?.connected) {
-      this.socket.emit('leave-board', { boardId });
-      console.log(`Saliendo del tablero: ${boardId}`);
+      this.socket.emit("leave-board", { boardId });
     }
   }
 
@@ -91,7 +88,12 @@ class SocketService {
     this.socket?.emit("column-added", { boardId, columnName, columns });
   }
 
-  emitColumnRenamed(boardId: string, oldName: string, newName: string, columns: string[]) {
+  emitColumnRenamed(
+    boardId: string,
+    oldName: string,
+    newName: string,
+    columns: string[]
+  ) {
     this.socket?.emit("column-renamed", { boardId, oldName, newName, columns });
   }
 
@@ -131,35 +133,59 @@ class SocketService {
 
   // Escuchar eventos de columnas del servidor
   onColumnAdded(
-    callback: (data: { columnName: string; columns: string[]; userId: string; timestamp: string }) => void
+    callback: (data: {
+      columnName: string;
+      columns: string[];
+      userId: string;
+      timestamp: string;
+    }) => void
   ) {
     this.socket?.on("column-added", callback);
     this.addListener("column-added", callback);
   }
 
   onColumnRenamed(
-    callback: (data: { oldName: string; newName: string; columns: string[]; userId: string; timestamp: string }) => void
+    callback: (data: {
+      oldName: string;
+      newName: string;
+      columns: string[];
+      userId: string;
+      timestamp: string;
+    }) => void
   ) {
     this.socket?.on("column-renamed", callback);
     this.addListener("column-renamed", callback);
   }
 
   onColumnDeleted(
-    callback: (data: { columnName: string; columns: string[]; userId: string; timestamp: string }) => void
+    callback: (data: {
+      columnName: string;
+      columns: string[];
+      userId: string;
+      timestamp: string;
+    }) => void
   ) {
     this.socket?.on("column-deleted", callback);
     this.addListener("column-deleted", callback);
   }
 
   onUserConnected(
-    callback: (data: { userId: string; count: number; timestamp: string }) => void
+    callback: (data: {
+      userId: string;
+      count: number;
+      timestamp: string;
+    }) => void
   ) {
     this.socket?.on("user-connected", callback);
     this.addListener("user-connected", callback);
   }
 
   onUserDisconnected(
-    callback: (data: { userId: string; count: number; timestamp: string }) => void
+    callback: (data: {
+      userId: string;
+      count: number;
+      timestamp: string;
+    }) => void
   ) {
     this.socket?.on("user-disconnected", callback);
     this.addListener("user-disconnected", callback);
@@ -174,17 +200,76 @@ class SocketService {
 
   // Escuchar eventos de tableros del servidor
   onBoardUpdated(
-    callback: (data: { boardId: string; name: string; userId: string; timestamp: string }) => void
+    callback: (data: {
+      boardId: string;
+      name: string;
+      userId: string;
+      timestamp: string;
+    }) => void
   ) {
     this.socket?.on("board-updated", callback);
     this.addListener("board-updated", callback);
   }
 
   onBoardDeleted(
-    callback: (data: { boardId: string; userId: string; timestamp: string }) => void
+    callback: (data: {
+      boardId: string;
+      userId: string;
+      timestamp: string;
+    }) => void
   ) {
     this.socket?.on("board-deleted", callback);
     this.addListener("board-deleted", callback);
+  }
+
+  // Invitation events
+  onBoardInvited(
+    callback: (data: {
+      boardId: string;
+      boardName: string;
+      invitedBy: string;
+      timestamp: string;
+    }) => void
+  ) {
+    this.socket?.on("board-invited", callback);
+    this.addListener("board-invited", callback);
+  }
+
+  onBoardInvitationAccepted(
+    callback: (data: {
+      boardId: string;
+      boardName: string;
+      acceptedBy: string;
+      timestamp: string;
+    }) => void
+  ) {
+    this.socket?.on("board-invitation-accepted", callback);
+    this.addListener("board-invitation-accepted", callback);
+  }
+
+  onBoardInvitationDeclined(
+    callback: (data: {
+      boardId: string;
+      boardName: string;
+      declinedBy: string;
+      timestamp: string;
+    }) => void
+  ) {
+    this.socket?.on("board-invitation-declined", callback);
+    this.addListener("board-invitation-declined", callback);
+  }
+
+  // Emit invitation events
+  emitBoardInvited(data: BoardInvitedEvent) {
+    this.socket?.emit("board-invited", data);
+  }
+
+  emitBoardInvitationAccepted(data: BoardInvitationAcceptedEvent) {
+    this.socket?.emit("board-invitation-accepted", data);
+  }
+
+  emitBoardInvitationDeclined(data: BoardInvitationDeclinedEvent) {
+    this.socket?.emit("board-invitation-declined", data);
   }
 
   // Remover listeners
