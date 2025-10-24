@@ -3,10 +3,12 @@ import {
   useContext,
   useState,
   useEffect,
+  useCallback,
   type ReactNode,
 } from "react";
 import { useAccount, useSignMessage } from "wagmi";
 import { authApi } from "../services/api";
+import { socketService } from "../services/socket";
 import { toast } from "sonner";
 import type { AxiosError } from "axios";
 import type { User } from "../types";
@@ -45,6 +47,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } else {
       // Si no hay token almacenado, marcar que la inicialización terminó
       setIsInitializing(false);
+      
+      // Conectar WebSocket incluso sin autenticación para usuarios anónimos
+      socketService.connect();
     }
   }, []);
 
@@ -56,6 +61,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // Si la llamada es exitosa, el token es válido
       setToken(tokenValue);
       setUser(userData);
+      
+      // Conectar WebSocket después de autenticación exitosa
+      socketService.connect();
     } catch (error) {
       console.error("Error verifying token:", error);
       // Si el token no es válido, limpiar el localStorage
@@ -77,25 +85,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, [isConnected, user, token]);
 
-  // Auto-login cuando se conecta la wallet
-  useEffect(() => {
-    // Solo ejecutar auto-login si:
-    // 1. No se está inicializando
-    // 2. Está conectado y tiene dirección
-    // 3. No tiene usuario o token válidos
-    // 4. No está cargando
-    if (
-      !isInitializing &&
-      isConnected &&
-      address &&
-      (!user?._id || !token) &&
-      !isLoading
-    ) {
-      login();
-    }
-  }, [isConnected, address, user, token, isLoading, isInitializing, autoLogin]);
-
-  const login = async () => {
+  const login = useCallback(async () => {
     if (!address || !isConnected) {
       toast.error("Por favor conecta tu wallet primero");
       return;
@@ -126,6 +116,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       localStorage.setItem("auth_token", authToken);
       localStorage.setItem("auth_user", JSON.stringify(userData as User));
 
+      // Conectar WebSocket después de autenticación exitosa
+      socketService.connect();
+
       toast.success("Autenticación exitosa!");
     } catch (error: unknown) {
       console.error("Error en login:", error);
@@ -136,13 +129,35 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [address, isConnected, signMessageAsync]);
+
+  // Auto-login cuando se conecta la wallet
+  useEffect(() => {
+    // Solo ejecutar auto-login si:
+    // 1. No se está inicializando
+    // 2. Está conectado y tiene dirección
+    // 3. No tiene usuario o token válidos
+    // 4. No está cargando
+    if (
+      !isInitializing &&
+      isConnected &&
+      address &&
+      (!user?._id || !token) &&
+      !isLoading
+    ) {
+      login();
+    }
+  }, [isConnected, address, user, token, isLoading, isInitializing, autoLogin, login]);
 
   const logout = () => {
     setUser(null);
     setToken(null);
     localStorage.removeItem("auth_token");
     localStorage.removeItem("auth_user");
+    
+    // Desconectar WebSocket al hacer logout
+    socketService.disconnect();
+    
     toast.info("Sesión cerrada");
   };
 

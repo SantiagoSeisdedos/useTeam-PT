@@ -98,7 +98,22 @@ export function KanbanBoard() {
 
     const taskId = active.id as string;
     const sourceColumn = active.data.current?.sortable?.containerId;
-    const destinationColumn = over.id as string;
+    
+    // Obtener la columna de destino correcta
+    let destinationColumn = over.id as string;
+    
+    // Si over.id es el ID de una tarea, obtener la columna de esa tarea
+    if (over.data.current?.type === 'task') {
+      const overTask = tasks.find(t => t._id === over.id);
+      if (overTask) {
+        destinationColumn = overTask.column;
+      }
+    }
+    
+    // Si aún no tenemos una columna válida, intentar obtenerla del data.current
+    if (!destinationColumn || !activeBoard.columns.includes(destinationColumn)) {
+      destinationColumn = over.data.current?.column || sourceColumn;
+    }
 
     if (sourceColumn === destinationColumn) return;
 

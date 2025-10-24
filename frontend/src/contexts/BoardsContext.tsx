@@ -3,6 +3,8 @@ import React, {
   useContext,
   useState,
   useEffect,
+  useCallback,
+  useRef,
   type ReactNode,
 } from "react";
 import { boardsApi, tasksApi } from "../services/api";
@@ -10,7 +12,17 @@ import { socketService } from "../services/socket";
 import { useAuth } from "./AuthContext";
 import { toast } from "sonner";
 
-import type { Board, Task } from "../types";
+import type {
+  Board,
+  SocketBoardDeletedEvent,
+  SocketBoardUpdatedEvent,
+  SocketTaskDeletedEvent,
+  SocketTaskEvent,
+  SocketTaskMovedEvent,
+  SocketTaskUpdatedEvent,
+  Task,
+  User,
+} from "../types";
 
 interface BoardsContextType {
   // Estado
@@ -79,8 +91,44 @@ export const BoardsProvider: React.FC<BoardsProviderProps> = ({ children }) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Refs para mantener referencias actualizadas en los listeners
+  const activeBoardRef = useRef<Board | null>(null);
+  const userRef = useRef<User | null>(null);
+  const boardsRef = useRef<Board[]>([]);
+  const setTasksRef = useRef<typeof setTasks>(() => {});
+  const setBoardsRef = useRef<typeof setBoards>(() => {});
+  const setActiveBoardStateRef = useRef<typeof setActiveBoardState>(() => {});
+
+  // Actualizar refs cuando cambien los valores
+  useEffect(() => {
+    activeBoardRef.current = activeBoard;
+    userRef.current = user;
+    boardsRef.current = boards;
+    setTasksRef.current = setTasks;
+    setBoardsRef.current = setBoards;
+    setActiveBoardStateRef.current = setActiveBoardState;
+  }, [activeBoard, user, boards]);
+
+  // Cargar tareas
+  const loadTasks = useCallback(async (boardId?: string) => {
+    const targetBoardId = boardId || activeBoard?._id;
+    if (!targetBoardId) return;
+
+    try {
+      setLoading(true);
+      const tasksData = await tasksApi.getAll(targetBoardId);
+      setTasks(tasksData);
+    } catch (err) {
+      console.error("Error loading tasks:", err);
+      setError("Error al cargar las tareas");
+      toast.error("Error al cargar las tareas");
+    } finally {
+      setLoading(false);
+    }
+  }, [activeBoard?._id]);
+
   // Cargar tableros
-  const loadBoards = async () => {
+  const loadBoards = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
@@ -101,25 +149,7 @@ export const BoardsProvider: React.FC<BoardsProviderProps> = ({ children }) => {
     } finally {
       setLoading(false);
     }
-  };
-
-  // Cargar tareas
-  const loadTasks = async (boardId?: string) => {
-    const targetBoardId = boardId || activeBoard?._id;
-    if (!targetBoardId) return;
-
-    try {
-      setLoading(true);
-      const tasksData = await tasksApi.getAll(targetBoardId);
-      setTasks(tasksData);
-    } catch (err) {
-      console.error("Error loading tasks:", err);
-      setError("Error al cargar las tareas");
-      toast.error("Error al cargar las tareas");
-    } finally {
-      setLoading(false);
-    }
-  };
+  }, [user?._id, activeBoard, loadTasks]);
 
   // Establecer tablero activo
   const setActiveBoard = (board: Board | null) => {
@@ -195,6 +225,10 @@ export const BoardsProvider: React.FC<BoardsProviderProps> = ({ children }) => {
       if (activeBoard?._id === boardId) {
         setActiveBoardState(updatedBoard);
       }
+
+      // Emitir evento WebSocket
+      socketService.emitColumnAdded(boardId, columnName, updatedBoard.columns);
+
       toast.success("Columna creada exitosamente");
     } catch (err) {
       console.error("Error adding column:", err);
@@ -220,6 +254,15 @@ export const BoardsProvider: React.FC<BoardsProviderProps> = ({ children }) => {
       if (activeBoard?._id === boardId) {
         setActiveBoardState(updatedBoard);
       }
+
+      // Emitir evento WebSocket
+      socketService.emitColumnRenamed(
+        boardId,
+        oldName,
+        newName,
+        updatedBoard.columns
+      );
+
       toast.success("Columna renombrada exitosamente");
     } catch (err) {
       console.error("Error renaming column:", err);
@@ -237,6 +280,14 @@ export const BoardsProvider: React.FC<BoardsProviderProps> = ({ children }) => {
       if (activeBoard?._id === boardId) {
         setActiveBoardState(updatedBoard);
       }
+
+      // Emitir evento WebSocket
+      socketService.emitColumnDeleted(
+        boardId,
+        columnName,
+        updatedBoard.columns
+      );
+
       toast.success("Columna eliminada exitosamente");
     } catch (err) {
       console.error("Error deleting column:", err);
@@ -252,8 +303,15 @@ export const BoardsProvider: React.FC<BoardsProviderProps> = ({ children }) => {
     boardId: string;
   }) => {
     try {
-      const newTask = await tasksApi.create(data);
+      const newTask = await tasksApi.create({
+        ...data,
+        userId: user?._id || 'anonymous',
+      });
       setTasks((prev) => [...prev, newTask]);
+
+      // El backend ya emite el evento WebSocket automáticamente
+      // No necesitamos emitir desde el frontend
+
       toast.success("Tarea creada exitosamente");
     } catch (err) {
       console.error("Error creating task:", err);
@@ -267,10 +325,17 @@ export const BoardsProvider: React.FC<BoardsProviderProps> = ({ children }) => {
     data: { title?: string; description?: string }
   ) => {
     try {
-      const updatedTask = await tasksApi.update(id, data);
+      const updatedTask = await tasksApi.update(id, {
+        ...data,
+        userId: user?._id || 'anonymous',
+      });
       setTasks((prev) =>
         prev.map((task) => (task._id === id ? updatedTask : task))
       );
+
+      // El backend ya emite el evento WebSocket automáticamente
+      // No necesitamos emitir desde el frontend
+
       toast.success("Tarea actualizada exitosamente");
     } catch (err) {
       console.error("Error updating task:", err);
@@ -283,6 +348,10 @@ export const BoardsProvider: React.FC<BoardsProviderProps> = ({ children }) => {
     try {
       await tasksApi.delete(id);
       setTasks((prev) => prev.filter((task) => task._id !== id));
+
+      // El backend ya emite el evento WebSocket automáticamente
+      // No necesitamos emitir desde el frontend
+
       toast.success("Tarea eliminada exitosamente");
     } catch (err) {
       console.error("Error deleting task:", err);
@@ -307,11 +376,29 @@ export const BoardsProvider: React.FC<BoardsProviderProps> = ({ children }) => {
         sourceIndex: data.sourceIndex,
         destinationIndex: data.position,
       });
-      // La actualización local se maneja en el componente para mejor UX
+
+      // Actualizar localmente para mejor UX (optimistic update)
+      setTasks((prev) =>
+        prev.map((task) =>
+          task._id === id
+            ? {
+                ...task,
+                column: data.column,
+                position: data.position,
+              }
+            : task
+        )
+      );
+
+      // El backend ya emite el evento WebSocket automáticamente
+      // No necesitamos emitir desde el frontend
+
       toast.success("Tarea movida exitosamente");
     } catch (err) {
       console.error("Error moving task:", err);
       toast.error("Error al mover la tarea");
+      // Revertir cambios locales en caso de error
+      await loadTasks();
     }
   };
 
@@ -343,66 +430,219 @@ export const BoardsProvider: React.FC<BoardsProviderProps> = ({ children }) => {
       setActiveBoardState(null);
       setTasks([]);
     }
-  }, [isAuthenticated, user, isInitializing]);
+  }, [isAuthenticated, user, isInitializing, loadBoards]);
 
   // WebSocket listeners
   useEffect(() => {
+    // Solo registrar listeners si el socket está conectado y hay un activeBoard
+    if (!socketService.isConnected() || !activeBoard) {
+      console.log('🚫 Skipping listener registration:', {
+        socketConnected: socketService.isConnected(),
+        hasActiveBoard: !!activeBoard
+      });
+      return;
+    }
+
+    console.log('✅ Registering WebSocket listeners for board:', activeBoard._id);
+
+    // Unirse al room del tablero para recibir eventos específicos
+    socketService.joinBoard(activeBoard._id);
+
     // Configurar listeners de WebSocket
-    const handleTaskCreated = (data: any) => {
-      if (data.task && data.task.boardId === activeBoard?._id) {
-        setTasks((prev) => [...prev, data.task]);
+    const handleTaskCreated = (data: SocketTaskEvent) => {
+      const currentSocketId = socketService.getSocketId();
+      const currentActiveBoard = activeBoardRef.current;
+      const currentUser = userRef.current;
+      
+      console.log('🔍 Task Created Event:', {
+        taskId: data.task?._id,
+        boardId: data.task?.boardId,
+        eventUserId: data.userId,
+        currentSocketId: currentSocketId,
+        currentUserId: currentUser?._id || 'anonymous',
+        activeBoardId: currentActiveBoard?._id,
+        shouldAdd: data.task && data.task.boardId === currentActiveBoard?._id && data.userId !== (currentUser?._id || 'anonymous')
+      });
+      
+      if (data.task && data.task.boardId === currentActiveBoard?._id) {
+        // Solo agregar si el evento NO viene del usuario actual
+        // Comparar con user._id para usuarios autenticados o 'anonymous' para usuarios anónimos
+        const currentUserId = currentUser?._id || 'anonymous';
+        if (data.userId !== currentUserId) {
+          console.log('✅ Adding task from WebSocket:', data.task._id);
+          setTasksRef.current((prev) => [...prev, data.task]);
+        } else {
+          console.log('❌ Skipping task from same user:', data.task._id);
+        }
       }
     };
 
-    const handleTaskUpdated = (data: any) => {
-      if (data.boardId === activeBoard?._id) {
-        setTasks((prev) =>
-          prev.map((task) =>
-            task._id === data.taskId ? { ...task, ...data.updates } : task
-          )
-        );
+    const handleTaskUpdated = (data: SocketTaskUpdatedEvent) => {
+      const currentActiveBoard = activeBoardRef.current;
+      const currentUser = userRef.current;
+      if (data.boardId === currentActiveBoard?._id) {
+        // Solo actualizar si el evento NO viene del usuario actual
+        const currentUserId = currentUser?._id || 'anonymous';
+        if (data.userId !== currentUserId) {
+          setTasksRef.current((prev) =>
+            prev.map((task) =>
+              task._id === data.taskId ? { ...task, ...data.updates } : task
+            )
+          );
+        }
       }
     };
 
-    const handleTaskDeleted = (data: any) => {
-      if (data.boardId === activeBoard?._id) {
-        setTasks((prev) => prev.filter((task) => task._id !== data.taskId));
+    const handleTaskDeleted = (data: SocketTaskDeletedEvent) => {
+      const currentActiveBoard = activeBoardRef.current;
+      const currentUser = userRef.current;
+      console.log('🗑️ Task Deleted Event:', {
+        taskId: data.taskId,
+        boardId: data.boardId,
+        eventUserId: data.userId,
+        currentUserId: currentUser?._id || 'anonymous',
+        activeBoardId: currentActiveBoard?._id,
+        shouldDelete: data.boardId === currentActiveBoard?._id && data.userId !== (currentUser?._id || 'anonymous')
+      });
+      
+      if (data.boardId === currentActiveBoard?._id) {
+        // Solo eliminar si el evento NO viene del usuario actual
+        const currentUserId = currentUser?._id || 'anonymous';
+        if (data.userId !== currentUserId) {
+          console.log('✅ Deleting task from WebSocket:', data.taskId);
+          setTasksRef.current((prev) => prev.filter((task) => task._id !== data.taskId));
+        } else {
+          console.log('❌ Skipping task deletion from same user:', data.taskId);
+        }
       }
     };
 
-    const handleTaskMoved = (data: any) => {
-      if (data.boardId === activeBoard?._id) {
-        setTasks((prev) =>
-          prev.map((task) =>
-            task._id === data.taskId
-              ? {
-                  ...task,
-                  column: data.destinationColumn,
-                  position: data.destinationIndex,
-                }
-              : task
-          )
-        );
+    const handleTaskMoved = (data: SocketTaskMovedEvent) => {
+      const currentActiveBoard = activeBoardRef.current;
+      const currentUser = userRef.current;
+      if (data.boardId === currentActiveBoard?._id) {
+        // Solo actualizar si el evento NO viene del usuario actual
+        const currentUserId = currentUser?._id || 'anonymous';
+        if (data.userId !== currentUserId) {
+          setTasksRef.current((prev) =>
+            prev.map((task) =>
+              task._id === data.taskId
+                ? {
+                    ...task,
+                    column: data.destinationColumn,
+                    position: data.destinationIndex,
+                  }
+                : task
+            )
+          );
+        }
       }
     };
 
-    const handleBoardUpdated = (data: any) => {
-      setBoards((prev) =>
+    const handleBoardUpdated = (data: SocketBoardUpdatedEvent) => {
+      setBoardsRef.current((prev) =>
         prev.map((board) =>
           board._id === data.boardId ? { ...board, name: data.name } : board
         )
       );
     };
 
-    const handleBoardDeleted = (data: any) => {
-      setBoards((prev) => prev.filter((board) => board._id !== data.boardId));
-      if (activeBoard?._id === data.boardId) {
-        const remainingBoards = boards.filter(
+    const handleBoardDeleted = (data: SocketBoardDeletedEvent) => {
+      setBoardsRef.current((prev) => prev.filter((board) => board._id !== data.boardId));
+      const currentActiveBoard = activeBoardRef.current;
+      if (currentActiveBoard?._id === data.boardId) {
+        const currentBoards = boardsRef.current;
+        const remainingBoards = currentBoards.filter(
           (board) => board._id !== data.boardId
         );
-        setActiveBoardState(
+        setActiveBoardStateRef.current(
           remainingBoards.length > 0 ? remainingBoards[0] : null
         );
+      }
+    };
+
+    // Listeners para eventos de columnas
+    const handleColumnAdded = (data: {
+      boardId: string;
+      columnName: string;
+      columns: string[];
+      userId: string;
+      timestamp: string;
+    }) => {
+      const currentActiveBoard = activeBoardRef.current;
+      const currentUser = userRef.current;
+      if (data.boardId === currentActiveBoard?._id) {
+        // Solo actualizar si el evento NO viene del usuario actual
+        const currentUserId = currentUser?._id || 'anonymous';
+        if (data.userId !== currentUserId) {
+          setBoardsRef.current((prev) =>
+            prev.map((board) =>
+              board._id === data.boardId ? { ...board, columns: data.columns } : board
+            )
+          );
+          if (currentActiveBoard?._id === data.boardId) {
+            setActiveBoardStateRef.current((prev) => prev ? { ...prev, columns: data.columns } : null);
+          }
+        }
+      }
+    };
+
+    const handleColumnRenamed = (data: {
+      boardId: string;
+      oldName: string;
+      newName: string;
+      columns: string[];
+      userId: string;
+      timestamp: string;
+    }) => {
+      const currentActiveBoard = activeBoardRef.current;
+      const currentUser = userRef.current;
+      if (data.boardId === currentActiveBoard?._id) {
+        // Solo actualizar si el evento NO viene del usuario actual
+        const currentUserId = currentUser?._id || 'anonymous';
+        if (data.userId !== currentUserId) {
+          setBoardsRef.current((prev) =>
+            prev.map((board) =>
+              board._id === data.boardId ? { ...board, columns: data.columns } : board
+            )
+          );
+          if (currentActiveBoard?._id === data.boardId) {
+            setActiveBoardStateRef.current((prev) => prev ? { ...prev, columns: data.columns } : null);
+          }
+          // Actualizar las tareas que estaban en la columna renombrada
+          setTasksRef.current((prev) =>
+            prev.map((task) =>
+              task.column === data.oldName ? { ...task, column: data.newName } : task
+            )
+          );
+        }
+      }
+    };
+
+    const handleColumnDeleted = (data: {
+      boardId: string;
+      columnName: string;
+      columns: string[];
+      userId: string;
+      timestamp: string;
+    }) => {
+      const currentActiveBoard = activeBoardRef.current;
+      const currentUser = userRef.current;
+      if (data.boardId === currentActiveBoard?._id) {
+        // Solo actualizar si el evento NO viene del usuario actual
+        const currentUserId = currentUser?._id || 'anonymous';
+        if (data.userId !== currentUserId) {
+          setBoardsRef.current((prev) =>
+            prev.map((board) =>
+              board._id === data.boardId ? { ...board, columns: data.columns } : board
+            )
+          );
+          if (currentActiveBoard?._id === data.boardId) {
+            setActiveBoardStateRef.current((prev) => prev ? { ...prev, columns: data.columns } : null);
+          }
+          // Eliminar las tareas que estaban en la columna eliminada
+          setTasksRef.current((prev) => prev.filter((task) => task.column !== data.columnName));
+        }
       }
     };
 
@@ -413,12 +653,29 @@ export const BoardsProvider: React.FC<BoardsProviderProps> = ({ children }) => {
     socketService.onTaskMoved(handleTaskMoved);
     socketService.onBoardUpdated(handleBoardUpdated);
     socketService.onBoardDeleted(handleBoardDeleted);
+    socketService.onColumnAdded(handleColumnAdded);
+    socketService.onColumnRenamed(handleColumnRenamed);
+    socketService.onColumnDeleted(handleColumnDeleted);
 
     // Cleanup
     return () => {
-      // Los listeners se limpian automáticamente en socketService
+      console.log('🧹 Cleaning up WebSocket listeners');
+      // Salir del room del tablero
+      if (activeBoard) {
+        socketService.leaveBoard(activeBoard._id);
+      }
+      // Limpiar listeners específicos para evitar duplicados
+      socketService.off("task-created", handleTaskCreated);
+      socketService.off("task-updated", handleTaskUpdated);
+      socketService.off("task-deleted", handleTaskDeleted);
+      socketService.off("task-moved", handleTaskMoved);
+      socketService.off("board-updated", handleBoardUpdated);
+      socketService.off("board-deleted", handleBoardDeleted);
+      socketService.off("column-added", handleColumnAdded);
+      socketService.off("column-renamed", handleColumnRenamed);
+      socketService.off("column-deleted", handleColumnDeleted);
     };
-  }, [activeBoard, boards]);
+  }, [activeBoard]); // Re-registrar cuando cambie el activeBoard
 
   const value: BoardsContextType = {
     boards,

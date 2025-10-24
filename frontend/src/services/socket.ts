@@ -4,6 +4,9 @@ import type {
   BoardInvitedEvent,
   BoardInvitationAcceptedEvent,
   BoardInvitationDeclinedEvent,
+  ColumnAddedEvent,
+  ColumnRenamedEvent,
+  ColumnDeletedEvent,
 } from "../../../backend/src/gateway/interfaces/socket-events.interface";
 import type {
   Task,
@@ -133,37 +136,21 @@ class SocketService {
 
   // Escuchar eventos de columnas del servidor
   onColumnAdded(
-    callback: (data: {
-      columnName: string;
-      columns: string[];
-      userId: string;
-      timestamp: string;
-    }) => void
+    callback: (data: ColumnAddedEvent) => void
   ) {
     this.socket?.on("column-added", callback);
     this.addListener("column-added", callback);
   }
 
   onColumnRenamed(
-    callback: (data: {
-      oldName: string;
-      newName: string;
-      columns: string[];
-      userId: string;
-      timestamp: string;
-    }) => void
+    callback: (data: ColumnRenamedEvent) => void
   ) {
     this.socket?.on("column-renamed", callback);
     this.addListener("column-renamed", callback);
   }
 
   onColumnDeleted(
-    callback: (data: {
-      columnName: string;
-      columns: string[];
-      userId: string;
-      timestamp: string;
-    }) => void
+    callback: (data: ColumnDeletedEvent) => void
   ) {
     this.socket?.on("column-deleted", callback);
     this.addListener("column-deleted", callback);
@@ -304,6 +291,10 @@ class SocketService {
 
   isConnected(): boolean {
     return this.socket?.connected || false;
+  }
+
+  getSocketId(): string | undefined {
+    return this.socket?.id;
   }
 }
 

@@ -38,7 +38,13 @@ export function KanbanColumn({
   onRenameColumn,
   onDeleteColumn,
 }: KanbanColumnProps) {
-  const { setNodeRef, isOver } = useDroppable({ id: column });
+  const { setNodeRef, isOver } = useDroppable({ 
+    id: column,
+    data: {
+      type: 'column',
+      column: column
+    }
+  });
   const [isRenaming, setIsRenaming] = useState(false);
   const [newColumnName, setNewColumnName] = useState(column);
 
@@ -128,9 +134,9 @@ export function KanbanColumn({
               isOver ? "bg-primary/10" : ""
             }`}
           >
-            {tasks.map((task) => (
+            {tasks.map((task, index) => (
               <TaskCard
-                key={task._id}
+                key={task._id + index.toString()}
                 task={task}
                 onEdit={onEditTask}
                 onDelete={onDeleteTask}

@@ -6,6 +6,7 @@ import { BoardsInitService } from './boards-init.service';
 import { Board, BoardSchema } from '../schemas/board.schema';
 import { Task, TaskSchema } from '../schemas/task.schema';
 import { InvitationsModule } from '../invitations/invitations.module';
+import { GatewayModule } from '../gateway/gateway.module';
 
 @Module({
   imports: [
@@ -14,6 +15,7 @@ import { InvitationsModule } from '../invitations/invitations.module';
       { name: Task.name, schema: TaskSchema },
     ]),
     InvitationsModule,
+    GatewayModule,
   ],
   controllers: [BoardsController],
   providers: [BoardsService, BoardsInitService],

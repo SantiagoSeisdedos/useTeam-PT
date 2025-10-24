@@ -28,6 +28,7 @@ export interface CreateTaskDto {
   boardId: string;
   position?: number;
   color?: string | null;
+  userId?: string;
 }
 
 export interface UpdateTaskDto {
@@ -36,6 +37,7 @@ export interface UpdateTaskDto {
   column?: string;
   position?: number;
   color?: string | null;
+  userId?: string;
 }
 
 export interface MoveTaskDto {
@@ -58,6 +60,7 @@ export interface SocketTaskEvent {
 
 export interface SocketTaskUpdatedEvent {
   taskId: string;
+  boardId: string;
   updates: Partial<Task>;
   userId: string;
   timestamp: string;
@@ -65,12 +68,14 @@ export interface SocketTaskUpdatedEvent {
 
 export interface SocketTaskDeletedEvent {
   taskId: string;
+  boardId: string;
   userId: string;
   timestamp: string;
 }
 
 export interface SocketTaskMovedEvent {
   taskId: string;
+  boardId: string;
   sourceColumn: string;
   destinationColumn: string;
   sourceIndex: number;
@@ -86,4 +91,17 @@ export interface User {
   email?: string;
   createdAt: string;
   updatedAt?: string;
+}
+
+export interface SocketBoardUpdatedEvent {
+  boardId: string;
+  name: string;
+  userId: string;
+  timestamp: string;
+}
+
+export interface SocketBoardDeletedEvent {
+  boardId: string;
+  userId: string;
+  timestamp: string;
 }

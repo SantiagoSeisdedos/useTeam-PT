@@ -5,10 +5,14 @@ import { Task, TaskDocument } from '../schemas/task.schema';
 import { CreateTaskDto } from './dto/create-task.dto';
 import { UpdateTaskDto } from './dto/update-task.dto';
 import { MoveTaskDto } from './dto/move-task.dto';
+import { KanbanGateway } from '../gateway/kanban.gateway';
 
 @Injectable()
 export class TasksService {
-  constructor(@InjectModel(Task.name) private taskModel: Model<TaskDocument>) {}
+  constructor(
+    @InjectModel(Task.name) private taskModel: Model<TaskDocument>,
+    private kanbanGateway: KanbanGateway,
+  ) {}
 
   async create(createTaskDto: CreateTaskDto): Promise<Task> {
     // Si no se especifica posición, obtener la última posición de la columna EN EL BOARD
@@ -26,7 +30,18 @@ export class TasksService {
     }
 
     const createdTask = new this.taskModel(createTaskDto);
-    return createdTask.save();
+    const savedTask = await createdTask.save();
+
+    // Emitir evento WebSocket al room del tablero
+    this.kanbanGateway.server
+      .to(`board-${savedTask.boardId}`)
+      .emit('task-created', {
+        task: savedTask,
+        userId: createTaskDto.userId || 'anonymous',
+        timestamp: new Date().toISOString(),
+      });
+
+    return savedTask;
   }
 
   async findAll(): Promise<Task[]> {
@@ -61,6 +76,18 @@ export class TasksService {
     if (!updatedTask) {
       throw new NotFoundException(`Task with ID ${id} not found`);
     }
+
+    // Emitir evento WebSocket al room del tablero
+    this.kanbanGateway.server
+      .to(`board-${updatedTask.boardId}`)
+      .emit('task-updated', {
+        taskId: id,
+        boardId: updatedTask.boardId,
+        updates: updateTaskDto,
+        userId: updateTaskDto.userId || 'anonymous',
+        timestamp: new Date().toISOString(),
+      });
+
     return updatedTask;
   }
 
@@ -69,6 +96,17 @@ export class TasksService {
     if (!deletedTask) {
       throw new NotFoundException(`Task with ID ${id} not found`);
     }
+
+    // Emitir evento WebSocket al room del tablero
+    this.kanbanGateway.server
+      .to(`board-${deletedTask.boardId}`)
+      .emit('task-deleted', {
+        taskId: id,
+        boardId: deletedTask.boardId,
+        userId: 'anonymous', // No tenemos userId en delete, usar anonymous
+        timestamp: new Date().toISOString(),
+      });
+
     return deletedTask;
   }
 
@@ -131,6 +169,18 @@ export class TasksService {
         position: destinationIndex,
       });
     }
+
+    // Emitir evento WebSocket al room del tablero
+    this.kanbanGateway.server.to(`board-${boardId}`).emit('task-moved', {
+      taskId: id,
+      boardId: boardId,
+      sourceColumn,
+      destinationColumn,
+      sourceIndex,
+      destinationIndex,
+      userId: 'anonymous', // No tenemos userId en move, usar anonymous
+      timestamp: new Date().toISOString(),
+    });
 
     return this.findOne(id);
   }

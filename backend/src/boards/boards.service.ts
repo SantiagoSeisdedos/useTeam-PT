@@ -9,12 +9,14 @@ import { Board, BoardDocument } from '../schemas/board.schema';
 import { Task, TaskDocument } from '../schemas/task.schema';
 import { CreateBoardDto } from './dto/create-board.dto';
 import { UpdateBoardDto } from './dto/update-board.dto';
+import { KanbanGateway } from '../gateway/kanban.gateway';
 
 @Injectable()
 export class BoardsService {
   constructor(
     @InjectModel(Board.name) private boardModel: Model<BoardDocument>,
     @InjectModel(Task.name) private taskModel: Model<TaskDocument>,
+    private kanbanGateway: KanbanGateway,
   ) {}
 
   async create(
@@ -113,7 +115,18 @@ export class BoardsService {
     }
 
     board.columns.push(columnName);
-    return board.save();
+    const savedBoard = await board.save();
+
+    // Emitir evento WebSocket al room del tablero
+    this.kanbanGateway.server.to(`board-${id}`).emit('column-added', {
+      boardId: id,
+      columnName,
+      columns: savedBoard.columns,
+      userId: 'anonymous', // No tenemos userId en addColumn, usar anonymous
+      timestamp: new Date().toISOString(),
+    });
+
+    return savedBoard;
   }
 
   async renameColumn(
@@ -143,7 +156,19 @@ export class BoardsService {
       .updateMany({ column: oldName }, { $set: { column: newName } })
       .exec();
 
-    return board.save();
+    const savedBoard = await board.save();
+
+    // Emitir evento WebSocket al room del tablero
+    this.kanbanGateway.server.to(`board-${id}`).emit('column-renamed', {
+      boardId: id,
+      oldName,
+      newName,
+      columns: savedBoard.columns,
+      userId: 'anonymous', // No tenemos userId en renameColumn, usar anonymous
+      timestamp: new Date().toISOString(),
+    });
+
+    return savedBoard;
   }
 
   async deleteColumn(id: string, columnName: string): Promise<Board> {
@@ -162,7 +187,18 @@ export class BoardsService {
     // Eliminar todas las tareas que están en esta columna
     await this.taskModel.deleteMany({ column: columnName }).exec();
 
-    return board.save();
+    const savedBoard = await board.save();
+
+    // Emitir evento WebSocket al room del tablero
+    this.kanbanGateway.server.to(`board-${id}`).emit('column-deleted', {
+      boardId: id,
+      columnName,
+      columns: savedBoard.columns,
+      userId: 'anonymous', // No tenemos userId en deleteColumn, usar anonymous
+      timestamp: new Date().toISOString(),
+    });
+
+    return savedBoard;
   }
 
   /**

@@ -30,4 +30,8 @@ export class CreateTaskDto {
   @IsString()
   @IsOptional()
   color?: string | null;
+
+  @IsString()
+  @IsOptional()
+  userId?: string;
 }
