@@ -31,6 +31,20 @@ interface BoardsContextType {
   tasks: Task[];
   loading: boolean;
   error: string | null;
+  
+  // Estados de loading específicos
+  loadingStates: {
+    creatingTask: boolean;
+    updatingTask: boolean;
+    deletingTask: string | null; // ID de la tarea que se está eliminando
+    movingTask: string | null; // ID de la tarea que se está moviendo
+    creatingBoard: boolean;
+    updatingBoard: boolean;
+    deletingBoard: boolean;
+    addingColumn: boolean;
+    renamingColumn: string | null; // Nombre de la columna que se está renombrando
+    deletingColumn: string | null; // Nombre de la columna que se está eliminando
+  };
 
   // Acciones de tableros
   loadBoards: () => Promise<void>;
@@ -77,7 +91,7 @@ interface BoardsContextType {
   refreshData: () => Promise<void>;
 }
 
-const BoardsContext = createContext<BoardsContextType | undefined>(undefined);
+export const BoardsContext = createContext<BoardsContextType | undefined>(undefined);
 
 interface BoardsProviderProps {
   children: ReactNode;
@@ -90,6 +104,20 @@ export const BoardsProvider: React.FC<BoardsProviderProps> = ({ children }) => {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  
+  // Estados de loading específicos
+  const [loadingStates, setLoadingStates] = useState({
+    creatingTask: false,
+    updatingTask: false,
+    deletingTask: null as string | null, // ID de la tarea que se está eliminando
+    movingTask: null as string | null, // ID de la tarea que se está moviendo
+    creatingBoard: false,
+    updatingBoard: false,
+    deletingBoard: false,
+    addingColumn: false,
+    renamingColumn: null as string | null, // Nombre de la columna que se está renombrando
+    deletingColumn: null as string | null, // Nombre de la columna que se está eliminando
+  });
 
   // Refs para mantener referencias actualizadas en los listeners
   const activeBoardRef = useRef<Board | null>(null);
@@ -108,6 +136,16 @@ export const BoardsProvider: React.FC<BoardsProviderProps> = ({ children }) => {
     setBoardsRef.current = setBoards;
     setActiveBoardStateRef.current = setActiveBoardState;
   }, [activeBoard, user, boards]);
+
+  // Helper para actualizar estados de loading
+  const updateLoadingState = (key: keyof typeof loadingStates, value: boolean | string | null) => {
+    setLoadingStates(prev => ({ ...prev, [key]: value }));
+  };
+
+  // Helper para simular delay (solo para testing/demo)
+  const simulateDelay = (ms: number = 3000) => {
+    return new Promise(resolve => setTimeout(resolve, ms));
+  };
 
   // Cargar tareas
   const loadTasks = useCallback(async (boardId?: string) => {
@@ -218,6 +256,8 @@ export const BoardsProvider: React.FC<BoardsProviderProps> = ({ children }) => {
   // Agregar columna
   const addColumn = async (boardId: string, columnName: string) => {
     try {
+      updateLoadingState('addingColumn', true);
+      await simulateDelay(3000); // Simular delay de 3 segundos para testing
       const updatedBoard = await boardsApi.addColumn(boardId, columnName);
       setBoards((prev) =>
         prev.map((board) => (board._id === boardId ? updatedBoard : board))
@@ -233,6 +273,8 @@ export const BoardsProvider: React.FC<BoardsProviderProps> = ({ children }) => {
     } catch (err) {
       console.error("Error adding column:", err);
       toast.error("Error al crear la columna");
+    } finally {
+      updateLoadingState('addingColumn', false);
     }
   };
 
@@ -243,6 +285,8 @@ export const BoardsProvider: React.FC<BoardsProviderProps> = ({ children }) => {
     newName: string
   ) => {
     try {
+      updateLoadingState('renamingColumn', oldName); // Guardar el nombre de la columna que se está renombrando
+      await simulateDelay(3000); // Simular delay de 3 segundos para testing
       const updatedBoard = await boardsApi.renameColumn(
         boardId,
         oldName,
@@ -267,12 +311,16 @@ export const BoardsProvider: React.FC<BoardsProviderProps> = ({ children }) => {
     } catch (err) {
       console.error("Error renaming column:", err);
       toast.error("Error al renombrar la columna");
+    } finally {
+      updateLoadingState('renamingColumn', null);
     }
   };
 
   // Eliminar columna
   const deleteColumn = async (boardId: string, columnName: string) => {
     try {
+      updateLoadingState('deletingColumn', columnName); // Guardar el nombre de la columna que se está eliminando
+      await simulateDelay(3000); // Simular delay de 3 segundos para testing
       const updatedBoard = await boardsApi.deleteColumn(boardId, columnName);
       setBoards((prev) =>
         prev.map((board) => (board._id === boardId ? updatedBoard : board))
@@ -292,6 +340,8 @@ export const BoardsProvider: React.FC<BoardsProviderProps> = ({ children }) => {
     } catch (err) {
       console.error("Error deleting column:", err);
       toast.error("Error al eliminar la columna");
+    } finally {
+      updateLoadingState('deletingColumn', null);
     }
   };
 
@@ -303,6 +353,8 @@ export const BoardsProvider: React.FC<BoardsProviderProps> = ({ children }) => {
     boardId: string;
   }) => {
     try {
+      updateLoadingState('creatingTask', true);
+      await simulateDelay(3000); // Simular delay de 3 segundos para testing
       const newTask = await tasksApi.create({
         ...data,
         userId: user?._id || 'anonymous',
@@ -316,6 +368,8 @@ export const BoardsProvider: React.FC<BoardsProviderProps> = ({ children }) => {
     } catch (err) {
       console.error("Error creating task:", err);
       toast.error("Error al crear la tarea");
+    } finally {
+      updateLoadingState('creatingTask', false);
     }
   };
 
@@ -325,6 +379,8 @@ export const BoardsProvider: React.FC<BoardsProviderProps> = ({ children }) => {
     data: { title?: string; description?: string }
   ) => {
     try {
+      updateLoadingState('updatingTask', true);
+      await simulateDelay(3000); // Simular delay de 3 segundos para testing
       const updatedTask = await tasksApi.update(id, {
         ...data,
         userId: user?._id || 'anonymous',
@@ -340,12 +396,16 @@ export const BoardsProvider: React.FC<BoardsProviderProps> = ({ children }) => {
     } catch (err) {
       console.error("Error updating task:", err);
       toast.error("Error al actualizar la tarea");
+    } finally {
+      updateLoadingState('updatingTask', false);
     }
   };
 
   // Eliminar tarea
   const deleteTask = async (id: string) => {
     try {
+      updateLoadingState('deletingTask', id); // Guardar el ID de la tarea que se está eliminando
+      await simulateDelay(3000); // Simular delay de 3 segundos para testing
       await tasksApi.delete(id);
       setTasks((prev) => prev.filter((task) => task._id !== id));
 
@@ -356,6 +416,8 @@ export const BoardsProvider: React.FC<BoardsProviderProps> = ({ children }) => {
     } catch (err) {
       console.error("Error deleting task:", err);
       toast.error("Error al eliminar la tarea");
+    } finally {
+      updateLoadingState('deletingTask', null);
     }
   };
 
@@ -370,6 +432,8 @@ export const BoardsProvider: React.FC<BoardsProviderProps> = ({ children }) => {
     }
   ) => {
     try {
+      updateLoadingState('movingTask', id); // Guardar el ID de la tarea que se está moviendo
+      await simulateDelay(3000); // Simular delay de 3 segundos para testing
       await tasksApi.move(id, {
         sourceColumn: data.sourceColumn,
         destinationColumn: data.column,
@@ -399,6 +463,8 @@ export const BoardsProvider: React.FC<BoardsProviderProps> = ({ children }) => {
       toast.error("Error al mover la tarea");
       // Revertir cambios locales en caso de error
       await loadTasks();
+    } finally {
+      updateLoadingState('movingTask', null);
     }
   };
 
@@ -683,6 +749,7 @@ export const BoardsProvider: React.FC<BoardsProviderProps> = ({ children }) => {
     tasks,
     loading,
     error,
+    loadingStates,
     loadBoards,
     setActiveBoard,
     createBoard,

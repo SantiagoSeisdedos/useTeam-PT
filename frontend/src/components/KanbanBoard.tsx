@@ -18,6 +18,8 @@ import UserProfile from "./UserProfile";
 import { Button } from "./ui/button";
 import { Card, CardContent } from "./ui/card";
 import { Input } from "./ui/input";
+import { useLoadingStates } from "../hooks/useLoadingStates";
+import LoadingButton from "./LoadingButton";
 import { Loader2, RefreshCw, Plus, Check, X } from "lucide-react";
 import { socketService } from "../services/socket";
 import { audioService } from "../services/audio";
@@ -28,6 +30,7 @@ import type { Task, Board, UpdateTaskDto } from "../types";
 
 export function KanbanBoard() {
   const { isAuthenticated } = useAuth();
+  const { isAddingColumn: isAddingColumnLoading } = useLoadingStates();
 
   // Usar el contexto de boards
   const {
@@ -98,20 +101,23 @@ export function KanbanBoard() {
 
     const taskId = active.id as string;
     const sourceColumn = active.data.current?.sortable?.containerId;
-    
+
     // Obtener la columna de destino correcta
     let destinationColumn = over.id as string;
-    
+
     // Si over.id es el ID de una tarea, obtener la columna de esa tarea
-    if (over.data.current?.type === 'task') {
-      const overTask = tasks.find(t => t._id === over.id);
+    if (over.data.current?.type === "task") {
+      const overTask = tasks.find((t) => t._id === over.id);
       if (overTask) {
         destinationColumn = overTask.column;
       }
     }
-    
+
     // Si aún no tenemos una columna válida, intentar obtenerla del data.current
-    if (!destinationColumn || !activeBoard.columns.includes(destinationColumn)) {
+    if (
+      !destinationColumn ||
+      !activeBoard.columns.includes(destinationColumn)
+    ) {
       destinationColumn = over.data.current?.column || sourceColumn;
     }
 
@@ -171,12 +177,14 @@ export function KanbanBoard() {
         });
       }
 
+      // Cerrar el diálogo solo después de que termine la operación
       setIsEditingTask(false);
       setEditingTask(null);
       audioService.play("task");
     } catch (error) {
       console.error("Error saving task:", error);
       toast.error("Error al guardar la tarea");
+      // No cerrar el diálogo si hay error para que el usuario pueda intentar de nuevo
     }
   };
 
@@ -381,14 +389,16 @@ export function KanbanBoard() {
                       className="mb-2"
                     />
                     <div className="flex gap-2">
-                      <Button
+                      <LoadingButton
                         size="sm"
                         onClick={handleAddColumn}
                         className="flex-1"
+                        loading={isAddingColumnLoading}
+                        loadingText="Creando..."
                       >
                         <Check className="h-4 w-4 mr-1" />
                         Crear
-                      </Button>
+                      </LoadingButton>
                       <Button
                         size="sm"
                         variant="outline"
@@ -418,12 +428,14 @@ export function KanbanBoard() {
 
             <DragOverlay>
               {activeTask ? (
-                <TaskCard
-                  task={activeTask}
-                  onEdit={() => {}}
-                  onDelete={() => {}}
-                  onColorChange={() => {}}
-                />
+                <div className="relative">
+                  <TaskCard
+                    task={activeTask}
+                    onEdit={() => {}}
+                    onDelete={() => {}}
+                    onColorChange={() => {}}
+                  />
+                </div>
               ) : null}
             </DragOverlay>
           </DndContext>

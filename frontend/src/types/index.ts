@@ -105,3 +105,51 @@ export interface SocketBoardDeletedEvent {
   userId: string;
   timestamp: string;
 }
+
+// Eventos de columnas
+export interface ColumnAddedEvent {
+  boardId: string;
+  columnName: string;
+  columns: string[];
+  userId: string;
+  timestamp: string;
+}
+
+export interface ColumnRenamedEvent {
+  boardId: string;
+  oldName: string;
+  newName: string;
+  columns: string[];
+  userId: string;
+  timestamp: string;
+}
+
+export interface ColumnDeletedEvent {
+  boardId: string;
+  columnName: string;
+  columns: string[];
+  userId: string;
+  timestamp: string;
+}
+
+// Eventos de invitaciones
+export interface BoardInvitedEvent {
+  boardId: string;
+  boardName: string;
+  invitedBy: string;
+  invitedUser: string;
+}
+
+export interface BoardInvitationAcceptedEvent {
+  boardId: string;
+  boardName: string;
+  acceptedBy: string;
+  ownerId: string;
+}
+
+export interface BoardInvitationDeclinedEvent {
+  boardId: string;
+  boardName: string;
+  declinedBy: string;
+  ownerId: string;
+}

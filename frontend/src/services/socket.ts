@@ -1,19 +1,17 @@
 import { io, Socket } from "socket.io-client";
 import { WS_URL } from "../config/api";
 import type {
+  Task,
+  SocketTaskEvent,
+  SocketTaskUpdatedEvent,
+  SocketTaskDeletedEvent,
+  SocketTaskMovedEvent,
   BoardInvitedEvent,
   BoardInvitationAcceptedEvent,
   BoardInvitationDeclinedEvent,
   ColumnAddedEvent,
   ColumnRenamedEvent,
   ColumnDeletedEvent,
-} from "../../../backend/src/gateway/interfaces/socket-events.interface";
-import type {
-  Task,
-  SocketTaskEvent,
-  SocketTaskUpdatedEvent,
-  SocketTaskDeletedEvent,
-  SocketTaskMovedEvent,
 } from "../types";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any

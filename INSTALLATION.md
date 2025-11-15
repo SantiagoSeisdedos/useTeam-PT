@@ -41,8 +41,22 @@ cd useTeam-PT
 Crea un archivo `.env` en la raíz con:
 
 ```env
+# OpenAI API Key (opcional, para mejoras con IA)
 OPENAI_API_KEY=sk-tu-api-key-aqui
+
+# WalletConnect Project ID (requerido para conectar wallets)
+# Obtén uno gratis en: https://cloud.walletconnect.com/
+VITE_WALLETCONNECT_PROJECT_ID=tu-project-id-aqui
 ```
+
+**⚠️ IMPORTANTE:** 
+- **WalletConnect Project ID es requerido.** Sin él, la aplicación no cargará correctamente.
+- **Cómo obtenerlo (gratis):**
+  1. Ve a https://cloud.walletconnect.com/
+  2. Crea una cuenta gratuita
+  3. Crea un nuevo proyecto
+  4. Copia el Project ID
+  5. Pégalo en el archivo `.env` como `VITE_WALLETCONNECT_PROJECT_ID`
 
 ### **3. Levantar TODO con Docker**
 
@@ -289,6 +303,11 @@ docker-compose restart n8n
 - Verificar que `OPENAI_API_KEY` esté en `backend/.env`
 - Reiniciar el backend después de agregar la key
 
+### **Error: "No projectId found. Every dApp must now provide a WalletConnect Cloud projectId"**
+- Verificar que `VITE_WALLETCONNECT_PROJECT_ID` esté en el archivo `.env` de la raíz del proyecto
+- Obtener un Project ID gratis en https://cloud.walletconnect.com/
+- Si usas Docker, reconstruir el frontend: `docker-compose up -d --build frontend`
+
 ### **Error: Export no funciona**
 - Verificar que el workflow esté **activado** en n8n
 - Revisar credenciales de OpenAI y SMTP en n8n
@@ -353,7 +372,7 @@ npm run preview      # Preview del build
 ### **Opción A: Todo en Docker** ⚡
 - [ ] Docker Desktop instalado y corriendo
 - [ ] Repositorio clonado
-- [ ] Archivo `.env` creado en raíz con `OPENAI_API_KEY`
+- [ ] Archivo `.env` creado en raíz con `OPENAI_API_KEY` y `VITE_WALLETCONNECT_PROJECT_ID`
 - [ ] `docker-compose up -d` ejecutado
 - [ ] 4 contenedores corriendo: mongodb, n8n, backend, frontend
 - [ ] **n8n:** Workflow importado y activado

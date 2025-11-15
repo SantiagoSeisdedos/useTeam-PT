@@ -4,6 +4,16 @@ FROM node:20-alpine AS builder
 # Directorio de trabajo
 WORKDIR /app
 
+# Argumentos de build para variables de entorno de Vite
+ARG VITE_WALLETCONNECT_PROJECT_ID
+ENV VITE_WALLETCONNECT_PROJECT_ID=${VITE_WALLETCONNECT_PROJECT_ID}
+
+ARG VITE_API_URL
+ENV VITE_API_URL=${VITE_API_URL}
+
+ARG VITE_WS_URL
+ENV VITE_WS_URL=${VITE_WS_URL}
+
 # Copiar archivos de dependencias
 COPY package*.json ./
 

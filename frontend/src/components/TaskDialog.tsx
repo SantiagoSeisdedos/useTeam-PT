@@ -17,11 +17,13 @@ import { Sparkles, Loader2, Check, X } from 'lucide-react';
 import { aiApi } from '../services/api';
 import { toast } from 'sonner';
 import type { Task } from '../types';
+import LoadingButton from './LoadingButton';
+import { useLoadingStates } from '../hooks/useLoadingStates';
 
 interface TaskDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onSubmit: (data: { title: string; description: string }) => void;
+  onSubmit: (data: { title: string; description: string }) => Promise<void>;
   task?: Task;
   column?: string;
   allTasks?: Task[]; // Para contexto de IA
@@ -55,6 +57,10 @@ export function TaskDialog({
   const [aiMode, setAiMode] = useState<AIMode>('simple');
   const [aiModel, setAiModel] = useState<AIModel>('gpt-4o-mini');
   const [aiStatus, setAiStatus] = useState<AIProviderStatus | null>(null);
+  
+  // Loading states para crear/actualizar tareas
+  const { isCreatingTask, isUpdatingTask } = useLoadingStates();
+  const isLoading = task ? isUpdatingTask : isCreatingTask;
 
   // Consultar estado de proveedores de IA al montar // TODO: Move to a reducer/context
   useEffect(() => {
@@ -98,14 +104,13 @@ export function TaskDialog({
     setImprovedDescription(null); // Reset preview al abrir/cambiar
   }, [task, open]);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!title.trim()) return;
+    if (!title.trim() || isLoading) return;
 
-    onSubmit({ title: title.trim(), description: description.trim() });
-    setTitle('');
-    setDescription('');
-    setImprovedDescription(null);
+    // onSubmit es async y esperará a que termine (incluido el delay)
+    await onSubmit({ title: title.trim(), description: description.trim() });
+    // No resetear aquí, el componente padre manejará el cierre
   };
 
   const handleImproveWithAI = async () => {
@@ -410,12 +415,18 @@ export function TaskDialog({
               type="button"
               variant="outline"
               onClick={() => onOpenChange(false)}
+              disabled={isLoading}
             >
               Cancelar
             </Button>
-            <Button type="submit" disabled={!title.trim()}>
+            <LoadingButton 
+              type="submit" 
+              disabled={!title.trim()}
+              loading={isLoading}
+              loadingText={task ? 'Guardando...' : 'Creando...'}
+            >
               {task ? 'Guardar' : 'Crear'}
-            </Button>
+            </LoadingButton>
           </DialogFooter>
         </form>
       </DialogContent>
