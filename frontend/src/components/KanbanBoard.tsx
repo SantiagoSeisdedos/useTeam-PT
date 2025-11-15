@@ -141,8 +141,7 @@ export function KanbanBoard() {
       });
 
       audioService.play("task"); // Sonido al mover tarea
-    } catch (error) {
-      console.error("Error moving task:", error);
+    } catch {
       toast.error("Error al mover la tarea");
     }
   };
@@ -181,8 +180,7 @@ export function KanbanBoard() {
       setIsEditingTask(false);
       setEditingTask(null);
       audioService.play("task");
-    } catch (error) {
-      console.error("Error saving task:", error);
+    } catch {
       toast.error("Error al guardar la tarea");
       // No cerrar el diálogo si hay error para que el usuario pueda intentar de nuevo
     }
@@ -194,8 +192,7 @@ export function KanbanBoard() {
     try {
       await deleteTask(taskId);
       audioService.play("delete");
-    } catch (error) {
-      console.error("Error deleting task:", error);
+    } catch {
       toast.error("Error al eliminar la tarea");
     }
   };
@@ -205,8 +202,7 @@ export function KanbanBoard() {
 
     try {
       await updateTask(taskId, { color: color || undefined } as UpdateTaskDto);
-    } catch (error) {
-      console.error("Error updating task color:", error);
+    } catch {
       toast.error("Error al actualizar el color");
     }
   };
@@ -220,8 +216,7 @@ export function KanbanBoard() {
       setNewColumnName("");
       setIsAddingColumn(false);
       audioService.play("column");
-    } catch (error) {
-      console.error("Error adding column:", error);
+    } catch {
       toast.error("Error al crear la columna");
     }
   };
@@ -231,8 +226,7 @@ export function KanbanBoard() {
 
     try {
       await renameColumn(activeBoard._id, oldName, newName);
-    } catch (error) {
-      console.error("Error renaming column:", error);
+    } catch {
       toast.error("Error al renombrar la columna");
     }
   };
@@ -243,8 +237,7 @@ export function KanbanBoard() {
     try {
       await deleteColumn(activeBoard._id, columnName);
       audioService.play("delete");
-    } catch (error) {
-      console.error("Error deleting column:", error);
+    } catch {
       toast.error("Error al eliminar la columna");
     }
   };
@@ -257,8 +250,7 @@ export function KanbanBoard() {
     try {
       await createBoard(data);
       setCreateBoardDialogOpen(false);
-    } catch (error) {
-      console.error("Error creating board:", error);
+    } catch {
       toast.error("Error al crear el tablero");
     }
   };
@@ -275,8 +267,7 @@ export function KanbanBoard() {
       await updateBoard(boardToEdit._id, { name });
       setEditBoardDialogOpen(false);
       setBoardToEdit(null);
-    } catch (error) {
-      console.error("Error updating board:", error);
+    } catch {
       toast.error("Error al actualizar el tablero");
     }
   };
@@ -286,8 +277,7 @@ export function KanbanBoard() {
       await deleteBoard(board._id);
       setEditBoardDialogOpen(false);
       setBoardToEdit(null);
-    } catch (error) {
-      console.error("Error deleting board:", error);
+    } catch {
       toast.error("Error al eliminar el tablero");
     }
   };

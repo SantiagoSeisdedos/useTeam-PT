@@ -54,8 +54,7 @@ const UserProfile: React.FC = () => {
       setSelectedBoardId("");
       setIsInviteOpen(false);
       refreshData(); // Recargar datos después de compartir
-    } catch (error) {
-      console.error("Error sharing board:", error);
+    } catch {
       toast.error(
         "Error al compartir el tablero. Verifica que la dirección de wallet sea correcta."
       );

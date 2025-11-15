@@ -31,7 +31,7 @@ interface BoardsContextType {
   tasks: Task[];
   loading: boolean;
   error: string | null;
-  
+
   // Estados de loading específicos
   loadingStates: {
     creatingTask: boolean;
@@ -91,7 +91,9 @@ interface BoardsContextType {
   refreshData: () => Promise<void>;
 }
 
-export const BoardsContext = createContext<BoardsContextType | undefined>(undefined);
+export const BoardsContext = createContext<BoardsContextType | undefined>(
+  undefined
+);
 
 interface BoardsProviderProps {
   children: ReactNode;
@@ -104,7 +106,7 @@ export const BoardsProvider: React.FC<BoardsProviderProps> = ({ children }) => {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  
+
   // Estados de loading específicos
   const [loadingStates, setLoadingStates] = useState({
     creatingTask: false,
@@ -138,32 +140,32 @@ export const BoardsProvider: React.FC<BoardsProviderProps> = ({ children }) => {
   }, [activeBoard, user, boards]);
 
   // Helper para actualizar estados de loading
-  const updateLoadingState = (key: keyof typeof loadingStates, value: boolean | string | null) => {
-    setLoadingStates(prev => ({ ...prev, [key]: value }));
-  };
-
-  // Helper para simular delay (solo para testing/demo)
-  const simulateDelay = (ms: number = 3000) => {
-    return new Promise(resolve => setTimeout(resolve, ms));
+  const updateLoadingState = (
+    key: keyof typeof loadingStates,
+    value: boolean | string | null
+  ) => {
+    setLoadingStates((prev) => ({ ...prev, [key]: value }));
   };
 
   // Cargar tareas
-  const loadTasks = useCallback(async (boardId?: string) => {
-    const targetBoardId = boardId || activeBoard?._id;
-    if (!targetBoardId) return;
+  const loadTasks = useCallback(
+    async (boardId?: string) => {
+      const targetBoardId = boardId || activeBoard?._id;
+      if (!targetBoardId) return;
 
-    try {
-      setLoading(true);
-      const tasksData = await tasksApi.getAll(targetBoardId);
-      setTasks(tasksData);
-    } catch (err) {
-      console.error("Error loading tasks:", err);
-      setError("Error al cargar las tareas");
-      toast.error("Error al cargar las tareas");
-    } finally {
-      setLoading(false);
-    }
-  }, [activeBoard?._id]);
+      try {
+        setLoading(true);
+        const tasksData = await tasksApi.getAll(targetBoardId);
+        setTasks(tasksData);
+      } catch {
+        setError("Error al cargar las tareas");
+        toast.error("Error al cargar las tareas");
+      } finally {
+        setLoading(false);
+      }
+    },
+    [activeBoard?._id]
+  );
 
   // Cargar tableros
   const loadBoards = useCallback(async () => {
@@ -180,8 +182,7 @@ export const BoardsProvider: React.FC<BoardsProviderProps> = ({ children }) => {
         // Cargar tareas del primer tablero
         loadTasks(firstBoard._id);
       }
-    } catch (err) {
-      console.error("Error loading boards:", err);
+    } catch {
       setError("Error al cargar los tableros");
       toast.error("Error al cargar los tableros");
     } finally {
@@ -206,8 +207,7 @@ export const BoardsProvider: React.FC<BoardsProviderProps> = ({ children }) => {
       const newBoard = await boardsApi.create(data);
       setBoards((prev) => [...prev, newBoard]);
       toast.success("Tablero creado exitosamente");
-    } catch (err) {
-      console.error("Error creating board:", err);
+    } catch {
       toast.error("Error al crear el tablero");
     }
   };
@@ -226,8 +226,7 @@ export const BoardsProvider: React.FC<BoardsProviderProps> = ({ children }) => {
         setActiveBoardState(updatedBoard);
       }
       toast.success("Tablero actualizado exitosamente");
-    } catch (err) {
-      console.error("Error updating board:", err);
+    } catch {
       toast.error("Error al actualizar el tablero");
     }
   };
@@ -247,8 +246,7 @@ export const BoardsProvider: React.FC<BoardsProviderProps> = ({ children }) => {
       }
 
       toast.success("Tablero eliminado exitosamente");
-    } catch (err) {
-      console.error("Error deleting board:", err);
+    } catch {
       toast.error("Error al eliminar el tablero");
     }
   };
@@ -256,8 +254,7 @@ export const BoardsProvider: React.FC<BoardsProviderProps> = ({ children }) => {
   // Agregar columna
   const addColumn = async (boardId: string, columnName: string) => {
     try {
-      updateLoadingState('addingColumn', true);
-      await simulateDelay(3000); // Simular delay de 3 segundos para testing
+      updateLoadingState("addingColumn", true);
       const updatedBoard = await boardsApi.addColumn(boardId, columnName);
       setBoards((prev) =>
         prev.map((board) => (board._id === boardId ? updatedBoard : board))
@@ -270,11 +267,10 @@ export const BoardsProvider: React.FC<BoardsProviderProps> = ({ children }) => {
       socketService.emitColumnAdded(boardId, columnName, updatedBoard.columns);
 
       toast.success("Columna creada exitosamente");
-    } catch (err) {
-      console.error("Error adding column:", err);
+    } catch {
       toast.error("Error al crear la columna");
     } finally {
-      updateLoadingState('addingColumn', false);
+      updateLoadingState("addingColumn", false);
     }
   };
 
@@ -285,8 +281,7 @@ export const BoardsProvider: React.FC<BoardsProviderProps> = ({ children }) => {
     newName: string
   ) => {
     try {
-      updateLoadingState('renamingColumn', oldName); // Guardar el nombre de la columna que se está renombrando
-      await simulateDelay(3000); // Simular delay de 3 segundos para testing
+      updateLoadingState("renamingColumn", oldName); // Guardar el nombre de la columna que se está renombrando
       const updatedBoard = await boardsApi.renameColumn(
         boardId,
         oldName,
@@ -308,19 +303,17 @@ export const BoardsProvider: React.FC<BoardsProviderProps> = ({ children }) => {
       );
 
       toast.success("Columna renombrada exitosamente");
-    } catch (err) {
-      console.error("Error renaming column:", err);
+    } catch {
       toast.error("Error al renombrar la columna");
     } finally {
-      updateLoadingState('renamingColumn', null);
+      updateLoadingState("renamingColumn", null);
     }
   };
 
   // Eliminar columna
   const deleteColumn = async (boardId: string, columnName: string) => {
     try {
-      updateLoadingState('deletingColumn', columnName); // Guardar el nombre de la columna que se está eliminando
-      await simulateDelay(3000); // Simular delay de 3 segundos para testing
+      updateLoadingState("deletingColumn", columnName); // Guardar el nombre de la columna que se está eliminando
       const updatedBoard = await boardsApi.deleteColumn(boardId, columnName);
       setBoards((prev) =>
         prev.map((board) => (board._id === boardId ? updatedBoard : board))
@@ -337,11 +330,10 @@ export const BoardsProvider: React.FC<BoardsProviderProps> = ({ children }) => {
       );
 
       toast.success("Columna eliminada exitosamente");
-    } catch (err) {
-      console.error("Error deleting column:", err);
+    } catch {
       toast.error("Error al eliminar la columna");
     } finally {
-      updateLoadingState('deletingColumn', null);
+      updateLoadingState("deletingColumn", null);
     }
   };
 
@@ -353,11 +345,10 @@ export const BoardsProvider: React.FC<BoardsProviderProps> = ({ children }) => {
     boardId: string;
   }) => {
     try {
-      updateLoadingState('creatingTask', true);
-      await simulateDelay(3000); // Simular delay de 3 segundos para testing
+      updateLoadingState("creatingTask", true);
       const newTask = await tasksApi.create({
         ...data,
-        userId: user?._id || 'anonymous',
+        userId: user?._id || "anonymous",
       });
       setTasks((prev) => [...prev, newTask]);
 
@@ -365,11 +356,10 @@ export const BoardsProvider: React.FC<BoardsProviderProps> = ({ children }) => {
       // No necesitamos emitir desde el frontend
 
       toast.success("Tarea creada exitosamente");
-    } catch (err) {
-      console.error("Error creating task:", err);
+    } catch {
       toast.error("Error al crear la tarea");
     } finally {
-      updateLoadingState('creatingTask', false);
+      updateLoadingState("creatingTask", false);
     }
   };
 
@@ -379,11 +369,10 @@ export const BoardsProvider: React.FC<BoardsProviderProps> = ({ children }) => {
     data: { title?: string; description?: string }
   ) => {
     try {
-      updateLoadingState('updatingTask', true);
-      await simulateDelay(3000); // Simular delay de 3 segundos para testing
+      updateLoadingState("updatingTask", true);
       const updatedTask = await tasksApi.update(id, {
         ...data,
-        userId: user?._id || 'anonymous',
+        userId: user?._id || "anonymous",
       });
       setTasks((prev) =>
         prev.map((task) => (task._id === id ? updatedTask : task))
@@ -393,19 +382,17 @@ export const BoardsProvider: React.FC<BoardsProviderProps> = ({ children }) => {
       // No necesitamos emitir desde el frontend
 
       toast.success("Tarea actualizada exitosamente");
-    } catch (err) {
-      console.error("Error updating task:", err);
+    } catch {
       toast.error("Error al actualizar la tarea");
     } finally {
-      updateLoadingState('updatingTask', false);
+      updateLoadingState("updatingTask", false);
     }
   };
 
   // Eliminar tarea
   const deleteTask = async (id: string) => {
     try {
-      updateLoadingState('deletingTask', id); // Guardar el ID de la tarea que se está eliminando
-      await simulateDelay(3000); // Simular delay de 3 segundos para testing
+      updateLoadingState("deletingTask", id); // Guardar el ID de la tarea que se está eliminando
       await tasksApi.delete(id);
       setTasks((prev) => prev.filter((task) => task._id !== id));
 
@@ -413,11 +400,10 @@ export const BoardsProvider: React.FC<BoardsProviderProps> = ({ children }) => {
       // No necesitamos emitir desde el frontend
 
       toast.success("Tarea eliminada exitosamente");
-    } catch (err) {
-      console.error("Error deleting task:", err);
+    } catch {
       toast.error("Error al eliminar la tarea");
     } finally {
-      updateLoadingState('deletingTask', null);
+      updateLoadingState("deletingTask", null);
     }
   };
 
@@ -432,8 +418,7 @@ export const BoardsProvider: React.FC<BoardsProviderProps> = ({ children }) => {
     }
   ) => {
     try {
-      updateLoadingState('movingTask', id); // Guardar el ID de la tarea que se está moviendo
-      await simulateDelay(3000); // Simular delay de 3 segundos para testing
+      updateLoadingState("movingTask", id); // Guardar el ID de la tarea que se está moviendo
       await tasksApi.move(id, {
         sourceColumn: data.sourceColumn,
         destinationColumn: data.column,
@@ -458,13 +443,12 @@ export const BoardsProvider: React.FC<BoardsProviderProps> = ({ children }) => {
       // No necesitamos emitir desde el frontend
 
       toast.success("Tarea movida exitosamente");
-    } catch (err) {
-      console.error("Error moving task:", err);
+    } catch {
       toast.error("Error al mover la tarea");
       // Revertir cambios locales en caso de error
       await loadTasks();
     } finally {
-      updateLoadingState('movingTask', null);
+      updateLoadingState("movingTask", null);
     }
   };
 
@@ -502,43 +486,23 @@ export const BoardsProvider: React.FC<BoardsProviderProps> = ({ children }) => {
   useEffect(() => {
     // Solo registrar listeners si el socket está conectado y hay un activeBoard
     if (!socketService.isConnected() || !activeBoard) {
-      console.log('🚫 Skipping listener registration:', {
-        socketConnected: socketService.isConnected(),
-        hasActiveBoard: !!activeBoard
-      });
       return;
     }
-
-    console.log('✅ Registering WebSocket listeners for board:', activeBoard._id);
 
     // Unirse al room del tablero para recibir eventos específicos
     socketService.joinBoard(activeBoard._id);
 
     // Configurar listeners de WebSocket
     const handleTaskCreated = (data: SocketTaskEvent) => {
-      const currentSocketId = socketService.getSocketId();
       const currentActiveBoard = activeBoardRef.current;
       const currentUser = userRef.current;
-      
-      console.log('🔍 Task Created Event:', {
-        taskId: data.task?._id,
-        boardId: data.task?.boardId,
-        eventUserId: data.userId,
-        currentSocketId: currentSocketId,
-        currentUserId: currentUser?._id || 'anonymous',
-        activeBoardId: currentActiveBoard?._id,
-        shouldAdd: data.task && data.task.boardId === currentActiveBoard?._id && data.userId !== (currentUser?._id || 'anonymous')
-      });
-      
+
       if (data.task && data.task.boardId === currentActiveBoard?._id) {
         // Solo agregar si el evento NO viene del usuario actual
         // Comparar con user._id para usuarios autenticados o 'anonymous' para usuarios anónimos
-        const currentUserId = currentUser?._id || 'anonymous';
+        const currentUserId = currentUser?._id || "anonymous";
         if (data.userId !== currentUserId) {
-          console.log('✅ Adding task from WebSocket:', data.task._id);
           setTasksRef.current((prev) => [...prev, data.task]);
-        } else {
-          console.log('❌ Skipping task from same user:', data.task._id);
         }
       }
     };
@@ -548,7 +512,7 @@ export const BoardsProvider: React.FC<BoardsProviderProps> = ({ children }) => {
       const currentUser = userRef.current;
       if (data.boardId === currentActiveBoard?._id) {
         // Solo actualizar si el evento NO viene del usuario actual
-        const currentUserId = currentUser?._id || 'anonymous';
+        const currentUserId = currentUser?._id || "anonymous";
         if (data.userId !== currentUserId) {
           setTasksRef.current((prev) =>
             prev.map((task) =>
@@ -562,23 +526,14 @@ export const BoardsProvider: React.FC<BoardsProviderProps> = ({ children }) => {
     const handleTaskDeleted = (data: SocketTaskDeletedEvent) => {
       const currentActiveBoard = activeBoardRef.current;
       const currentUser = userRef.current;
-      console.log('🗑️ Task Deleted Event:', {
-        taskId: data.taskId,
-        boardId: data.boardId,
-        eventUserId: data.userId,
-        currentUserId: currentUser?._id || 'anonymous',
-        activeBoardId: currentActiveBoard?._id,
-        shouldDelete: data.boardId === currentActiveBoard?._id && data.userId !== (currentUser?._id || 'anonymous')
-      });
-      
+
       if (data.boardId === currentActiveBoard?._id) {
         // Solo eliminar si el evento NO viene del usuario actual
-        const currentUserId = currentUser?._id || 'anonymous';
+        const currentUserId = currentUser?._id || "anonymous";
         if (data.userId !== currentUserId) {
-          console.log('✅ Deleting task from WebSocket:', data.taskId);
-          setTasksRef.current((prev) => prev.filter((task) => task._id !== data.taskId));
-        } else {
-          console.log('❌ Skipping task deletion from same user:', data.taskId);
+          setTasksRef.current((prev) =>
+            prev.filter((task) => task._id !== data.taskId)
+          );
         }
       }
     };
@@ -588,7 +543,7 @@ export const BoardsProvider: React.FC<BoardsProviderProps> = ({ children }) => {
       const currentUser = userRef.current;
       if (data.boardId === currentActiveBoard?._id) {
         // Solo actualizar si el evento NO viene del usuario actual
-        const currentUserId = currentUser?._id || 'anonymous';
+        const currentUserId = currentUser?._id || "anonymous";
         if (data.userId !== currentUserId) {
           setTasksRef.current((prev) =>
             prev.map((task) =>
@@ -614,7 +569,9 @@ export const BoardsProvider: React.FC<BoardsProviderProps> = ({ children }) => {
     };
 
     const handleBoardDeleted = (data: SocketBoardDeletedEvent) => {
-      setBoardsRef.current((prev) => prev.filter((board) => board._id !== data.boardId));
+      setBoardsRef.current((prev) =>
+        prev.filter((board) => board._id !== data.boardId)
+      );
       const currentActiveBoard = activeBoardRef.current;
       if (currentActiveBoard?._id === data.boardId) {
         const currentBoards = boardsRef.current;
@@ -639,15 +596,19 @@ export const BoardsProvider: React.FC<BoardsProviderProps> = ({ children }) => {
       const currentUser = userRef.current;
       if (data.boardId === currentActiveBoard?._id) {
         // Solo actualizar si el evento NO viene del usuario actual
-        const currentUserId = currentUser?._id || 'anonymous';
+        const currentUserId = currentUser?._id || "anonymous";
         if (data.userId !== currentUserId) {
           setBoardsRef.current((prev) =>
             prev.map((board) =>
-              board._id === data.boardId ? { ...board, columns: data.columns } : board
+              board._id === data.boardId
+                ? { ...board, columns: data.columns }
+                : board
             )
           );
           if (currentActiveBoard?._id === data.boardId) {
-            setActiveBoardStateRef.current((prev) => prev ? { ...prev, columns: data.columns } : null);
+            setActiveBoardStateRef.current((prev) =>
+              prev ? { ...prev, columns: data.columns } : null
+            );
           }
         }
       }
@@ -665,20 +626,26 @@ export const BoardsProvider: React.FC<BoardsProviderProps> = ({ children }) => {
       const currentUser = userRef.current;
       if (data.boardId === currentActiveBoard?._id) {
         // Solo actualizar si el evento NO viene del usuario actual
-        const currentUserId = currentUser?._id || 'anonymous';
+        const currentUserId = currentUser?._id || "anonymous";
         if (data.userId !== currentUserId) {
           setBoardsRef.current((prev) =>
             prev.map((board) =>
-              board._id === data.boardId ? { ...board, columns: data.columns } : board
+              board._id === data.boardId
+                ? { ...board, columns: data.columns }
+                : board
             )
           );
           if (currentActiveBoard?._id === data.boardId) {
-            setActiveBoardStateRef.current((prev) => prev ? { ...prev, columns: data.columns } : null);
+            setActiveBoardStateRef.current((prev) =>
+              prev ? { ...prev, columns: data.columns } : null
+            );
           }
           // Actualizar las tareas que estaban en la columna renombrada
           setTasksRef.current((prev) =>
             prev.map((task) =>
-              task.column === data.oldName ? { ...task, column: data.newName } : task
+              task.column === data.oldName
+                ? { ...task, column: data.newName }
+                : task
             )
           );
         }
@@ -696,18 +663,24 @@ export const BoardsProvider: React.FC<BoardsProviderProps> = ({ children }) => {
       const currentUser = userRef.current;
       if (data.boardId === currentActiveBoard?._id) {
         // Solo actualizar si el evento NO viene del usuario actual
-        const currentUserId = currentUser?._id || 'anonymous';
+        const currentUserId = currentUser?._id || "anonymous";
         if (data.userId !== currentUserId) {
           setBoardsRef.current((prev) =>
             prev.map((board) =>
-              board._id === data.boardId ? { ...board, columns: data.columns } : board
+              board._id === data.boardId
+                ? { ...board, columns: data.columns }
+                : board
             )
           );
           if (currentActiveBoard?._id === data.boardId) {
-            setActiveBoardStateRef.current((prev) => prev ? { ...prev, columns: data.columns } : null);
+            setActiveBoardStateRef.current((prev) =>
+              prev ? { ...prev, columns: data.columns } : null
+            );
           }
           // Eliminar las tareas que estaban en la columna eliminada
-          setTasksRef.current((prev) => prev.filter((task) => task.column !== data.columnName));
+          setTasksRef.current((prev) =>
+            prev.filter((task) => task.column !== data.columnName)
+          );
         }
       }
     };
@@ -725,7 +698,6 @@ export const BoardsProvider: React.FC<BoardsProviderProps> = ({ children }) => {
 
     // Cleanup
     return () => {
-      console.log('🧹 Cleaning up WebSocket listeners');
       // Salir del room del tablero
       if (activeBoard) {
         socketService.leaveBoard(activeBoard._id);

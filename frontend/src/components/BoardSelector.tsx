@@ -47,8 +47,7 @@ export function BoardSelector({
       toast.success("Has abandonado el tablero");
       // Recargar la página para actualizar los tableros disponibles
       window.location.reload();
-    } catch (error) {
-      console.error("Error leaving board:", error);
+    } catch {
       toast.error("Error al abandonar el tablero");
     }
   };
@@ -103,33 +102,37 @@ export function BoardSelector({
               {activeBoard?._id === board._id && (
                 <div className="absolute right-2 top-2 opacity-0 group-hover:opacity-100 transition-opacity flex gap-1 z-10">
                   {/* Acciones para tableros propios */}
-                  {user && board.owner?._id === user._id && onEditBoard && onDeleteBoard && !board.isPublic && (
-                    <>
-                      <Button
-                        size="icon"
-                        variant="ghost"
-                        className="h-6 w-6"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          onEditBoard(board);
-                        }}
-                      >
-                        <Settings className="h-3 w-3" />
-                      </Button>
-                      <Button
-                        size="icon"
-                        variant="ghost"
-                        className="h-6 w-6 text-destructive hover:text-destructive"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          onDeleteBoard(board._id);
-                        }}
-                      >
-                        <Trash2 className="h-3 w-3" />
-                      </Button>
-                    </>
-                  )}
-                  
+                  {user &&
+                    board.owner?._id === user._id &&
+                    onEditBoard &&
+                    onDeleteBoard &&
+                    !board.isPublic && (
+                      <>
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          className="h-6 w-6"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onEditBoard(board);
+                          }}
+                        >
+                          <Settings className="h-3 w-3" />
+                        </Button>
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          className="h-6 w-6 text-destructive hover:text-destructive"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onDeleteBoard(board._id);
+                          }}
+                        >
+                          <Trash2 className="h-3 w-3" />
+                        </Button>
+                      </>
+                    )}
+
                   {/* Acción para abandonar tableros compartidos */}
                   {user && board.owner?._id !== user._id && !board.isPublic && (
                     <Button

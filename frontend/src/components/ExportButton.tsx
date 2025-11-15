@@ -74,7 +74,6 @@ export function ExportButton({ boards }: ExportButtonProps) {
           "No se pudo completar la exportación. Verifica que n8n esté configurado.",
         duration: 5000,
       });
-      console.error("Error exportando backlog:", error);
     } finally {
       setIsExporting(false);
     }

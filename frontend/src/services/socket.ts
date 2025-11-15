@@ -38,7 +38,6 @@ class SocketService {
     this.socket.on("disconnect", () => {});
 
     this.socket.on("connect_error", (error) => {
-      console.error("Error de conexión WebSocket:", error);
     });
 
     // Re-registrar listeners después de reconectar

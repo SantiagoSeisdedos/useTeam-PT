@@ -64,8 +64,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       
       // Conectar WebSocket después de autenticación exitosa
       socketService.connect();
-    } catch (error) {
-      console.error("Error verifying token:", error);
+    } catch {
       // Si el token no es válido, limpiar el localStorage
       localStorage.removeItem("auth_token");
       localStorage.removeItem("auth_user");
@@ -121,7 +120,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       toast.success("Autenticación exitosa!");
     } catch (error: unknown) {
-      console.error("Error en login:", error);
       toast.error(
         (error as AxiosError<{ message: string }>)?.response?.data?.message ||
           "Error al autenticar"

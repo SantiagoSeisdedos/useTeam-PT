@@ -59,8 +59,7 @@ export const InvitationsPanel: React.FC<InvitationsPanelProps> = ({
       try {
         const pendingInvitations = await invitationsApi.getPendingInvitations();
         setInvitations(pendingInvitations);
-      } catch (error) {
-        console.error("Error loading invitations:", error);
+      } catch {
         toast.error("Error al cargar las invitaciones");
       }
     };
@@ -113,8 +112,7 @@ export const InvitationsPanel: React.FC<InvitationsPanelProps> = ({
 
       toast.success("Invitación aceptada");
       refreshData(); // Recargar tableros
-    } catch (error) {
-      console.error("Error accepting invitation:", error);
+    } catch {
       toast.error("Error al aceptar la invitación");
     } finally {
       setLoading(false);
@@ -130,8 +128,7 @@ export const InvitationsPanel: React.FC<InvitationsPanelProps> = ({
       setInvitations((prev) => prev.filter((inv) => inv._id !== invitationId));
 
       toast.success("Invitación rechazada");
-    } catch (error) {
-      console.error("Error declining invitation:", error);
+    } catch {
       toast.error("Error al rechazar la invitación");
     } finally {
       setLoading(false);
