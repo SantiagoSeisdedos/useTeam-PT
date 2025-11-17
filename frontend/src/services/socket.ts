@@ -37,8 +37,7 @@ class SocketService {
 
     this.socket.on("disconnect", () => {});
 
-    this.socket.on("connect_error", (error) => {
-    });
+    this.socket.on("connect_error", () => {});
 
     // Re-registrar listeners después de reconectar
     this.socket.on("reconnect", () => {
@@ -132,23 +131,17 @@ class SocketService {
   }
 
   // Escuchar eventos de columnas del servidor
-  onColumnAdded(
-    callback: (data: ColumnAddedEvent) => void
-  ) {
+  onColumnAdded(callback: (data: ColumnAddedEvent) => void) {
     this.socket?.on("column-added", callback);
     this.addListener("column-added", callback);
   }
 
-  onColumnRenamed(
-    callback: (data: ColumnRenamedEvent) => void
-  ) {
+  onColumnRenamed(callback: (data: ColumnRenamedEvent) => void) {
     this.socket?.on("column-renamed", callback);
     this.addListener("column-renamed", callback);
   }
 
-  onColumnDeleted(
-    callback: (data: ColumnDeletedEvent) => void
-  ) {
+  onColumnDeleted(callback: (data: ColumnDeletedEvent) => void) {
     this.socket?.on("column-deleted", callback);
     this.addListener("column-deleted", callback);
   }
