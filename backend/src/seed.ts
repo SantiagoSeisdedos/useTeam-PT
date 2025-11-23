@@ -19,11 +19,20 @@ async function seed() {
 
     logger.log('🌱 Iniciando seed de base de datos...');
 
-    // Crear tablero por defecto
+    // Crear tablero público por defecto
     const board = await boardsService.create({
-      name: 'Tablero Principal',
+      name: 'Tablero Público',
       columns: ['Por Hacer', 'En Progreso', 'Completado'],
     });
+
+    // Marcar el tablero como público usando el servicio
+    const boardId = (board as any)._id?.toString();
+    if (boardId) {
+      await boardsService.update(boardId, {
+        name: 'Tablero Público',
+        isPublic: true,
+      });
+    }
 
     logger.log(`✅ Tablero creado: ${board.name}`);
 
@@ -35,12 +44,14 @@ async function seed() {
           'Inicializar proyecto con Create React App y configurar dependencias',
         column: 'Completado',
         position: 0,
+        boardId: (board as any)._id.toString(),
       },
       {
         title: 'Implementar tablero Kanban',
         description: 'Crear componentes del tablero con drag & drop',
         column: 'En Progreso',
         position: 0,
+        boardId: (board as any)._id.toString(),
       },
       {
         title: 'Integrar WebSocket',
@@ -48,36 +59,41 @@ async function seed() {
           'Conectar cliente Socket.io para colaboración en tiempo real',
         column: 'En Progreso',
         position: 1,
+        boardId: (board as any)._id.toString(),
       },
       {
         title: 'Diseñar interfaz de usuario',
         description: 'Crear diseño moderno y responsive del tablero',
         column: 'Por Hacer',
         position: 0,
+        boardId: (board as any)._id.toString(),
       },
       {
         title: 'Agregar botón de exportación',
         description: 'Implementar botón para exportar backlog vía n8n',
         column: 'Por Hacer',
         position: 1,
+        boardId: (board as any)._id.toString(),
       },
       {
         title: 'Configurar notificaciones',
         description: 'Mostrar toast notifications para eventos en tiempo real',
         column: 'Por Hacer',
         position: 2,
+        boardId: (board as any)._id.toString(),
       },
       {
         title: 'Testing E2E',
         description: 'Escribir tests de integración para el flujo completo',
         column: 'Por Hacer',
         position: 3,
+        boardId: (board as any)._id.toString(),
       },
     ];
 
     for (const taskData of sampleTasks) {
-      const task = await tasksService.create(taskData);
-      logger.log(`  ✅ Tarea creada: "${task.title}" (${task.column})`);
+      await tasksService.create(taskData);
+      logger.log(`  ✅ Tarea creada: "${taskData.title}" (${taskData.column})`);
     }
 
     logger.log('🎉 Seed completado exitosamente');
@@ -85,9 +101,12 @@ async function seed() {
 
     await app.close();
   } catch (error) {
-    logger.error('❌ Error durante el seed:', error.message);
+    logger.error('❌ Error durante el seed:', (error as Error).message);
     process.exit(1);
   }
 }
 
-seed();
+seed().catch((error) => {
+  console.error('Error durante el seed:', (error as Error).message);
+  process.exit(1);
+});

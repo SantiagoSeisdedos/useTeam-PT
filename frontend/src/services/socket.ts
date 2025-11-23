@@ -6,6 +6,12 @@ import type {
   SocketTaskUpdatedEvent,
   SocketTaskDeletedEvent,
   SocketTaskMovedEvent,
+  BoardInvitedEvent,
+  BoardInvitationAcceptedEvent,
+  BoardInvitationDeclinedEvent,
+  ColumnAddedEvent,
+  ColumnRenamedEvent,
+  ColumnDeletedEvent,
 } from "../types";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -17,7 +23,6 @@ class SocketService {
 
   connect() {
     if (this.socket?.connected) {
-      console.log("Socket already connected");
       return;
     }
 
@@ -28,21 +33,14 @@ class SocketService {
       reconnectionDelay: 1000,
     });
 
-    this.socket.on("connect", () => {
-      console.log("WebSocket conectado:", this.socket?.id);
-    });
+    this.socket.on("connect", () => {});
 
-    this.socket.on("disconnect", () => {
-      console.log("WebSocket desconectado");
-    });
+    this.socket.on("disconnect", () => {});
 
-    this.socket.on("connect_error", (error) => {
-      console.error("Error de conexión WebSocket:", error);
-    });
+    this.socket.on("connect_error", () => {});
 
     // Re-registrar listeners después de reconectar
     this.socket.on("reconnect", () => {
-      console.log("🔄 WebSocket reconectado");
       this.reattachListeners();
     });
   }
@@ -54,17 +52,30 @@ class SocketService {
     }
   }
 
+  // Métodos para manejar rooms de tableros
+  joinBoard(boardId: string) {
+    if (this.socket?.connected) {
+      this.socket.emit("join-board", { boardId });
+    }
+  }
+
+  leaveBoard(boardId: string) {
+    if (this.socket?.connected) {
+      this.socket.emit("leave-board", { boardId });
+    }
+  }
+
   // Eventos emitidos desde el cliente
   emitTaskCreated(task: Task) {
     this.socket?.emit("task-created", { task });
   }
 
-  emitTaskUpdated(taskId: string, updates: Partial<Task>) {
-    this.socket?.emit("task-updated", { taskId, updates });
+  emitTaskUpdated(taskId: string, boardId: string, updates: Partial<Task>) {
+    this.socket?.emit("task-updated", { taskId, boardId, updates });
   }
 
-  emitTaskDeleted(taskId: string) {
-    this.socket?.emit("task-deleted", { taskId });
+  emitTaskDeleted(taskId: string, boardId: string) {
+    this.socket?.emit("task-deleted", { taskId, boardId });
   }
 
   emitTaskMoved(data: SocketTaskMovedEvent) {
@@ -72,16 +83,30 @@ class SocketService {
   }
 
   // Eventos de columnas emitidos desde el cliente
-  emitColumnAdded(columnName: string, columns: string[]) {
-    this.socket?.emit("column-added", { columnName, columns });
+  emitColumnAdded(boardId: string, columnName: string, columns: string[]) {
+    this.socket?.emit("column-added", { boardId, columnName, columns });
   }
 
-  emitColumnRenamed(oldName: string, newName: string, columns: string[]) {
-    this.socket?.emit("column-renamed", { oldName, newName, columns });
+  emitColumnRenamed(
+    boardId: string,
+    oldName: string,
+    newName: string,
+    columns: string[]
+  ) {
+    this.socket?.emit("column-renamed", { boardId, oldName, newName, columns });
   }
 
-  emitColumnDeleted(columnName: string, columns: string[]) {
-    this.socket?.emit("column-deleted", { columnName, columns });
+  emitColumnDeleted(boardId: string, columnName: string, columns: string[]) {
+    this.socket?.emit("column-deleted", { boardId, columnName, columns });
+  }
+
+  // Eventos de tableros emitidos desde el cliente
+  emitBoardUpdated(boardId: string, name: string) {
+    this.socket?.emit("board-updated", { boardId, name });
+  }
+
+  emitBoardDeleted(boardId: string) {
+    this.socket?.emit("board-deleted", { boardId });
   }
 
   // Escuchar eventos del servidor
@@ -106,36 +131,38 @@ class SocketService {
   }
 
   // Escuchar eventos de columnas del servidor
-  onColumnAdded(
-    callback: (data: { columnName: string; columns: string[]; userId: string; timestamp: string }) => void
-  ) {
+  onColumnAdded(callback: (data: ColumnAddedEvent) => void) {
     this.socket?.on("column-added", callback);
     this.addListener("column-added", callback);
   }
 
-  onColumnRenamed(
-    callback: (data: { oldName: string; newName: string; columns: string[]; userId: string; timestamp: string }) => void
-  ) {
+  onColumnRenamed(callback: (data: ColumnRenamedEvent) => void) {
     this.socket?.on("column-renamed", callback);
     this.addListener("column-renamed", callback);
   }
 
-  onColumnDeleted(
-    callback: (data: { columnName: string; columns: string[]; userId: string; timestamp: string }) => void
-  ) {
+  onColumnDeleted(callback: (data: ColumnDeletedEvent) => void) {
     this.socket?.on("column-deleted", callback);
     this.addListener("column-deleted", callback);
   }
 
   onUserConnected(
-    callback: (data: { userId: string; count: number; timestamp: string }) => void
+    callback: (data: {
+      userId: string;
+      count: number;
+      timestamp: string;
+    }) => void
   ) {
     this.socket?.on("user-connected", callback);
     this.addListener("user-connected", callback);
   }
 
   onUserDisconnected(
-    callback: (data: { userId: string; count: number; timestamp: string }) => void
+    callback: (data: {
+      userId: string;
+      count: number;
+      timestamp: string;
+    }) => void
   ) {
     this.socket?.on("user-disconnected", callback);
     this.addListener("user-disconnected", callback);
@@ -146,6 +173,80 @@ class SocketService {
   ) {
     this.socket?.on("connected-users-count", callback);
     this.addListener("connected-users-count", callback);
+  }
+
+  // Escuchar eventos de tableros del servidor
+  onBoardUpdated(
+    callback: (data: {
+      boardId: string;
+      name: string;
+      userId: string;
+      timestamp: string;
+    }) => void
+  ) {
+    this.socket?.on("board-updated", callback);
+    this.addListener("board-updated", callback);
+  }
+
+  onBoardDeleted(
+    callback: (data: {
+      boardId: string;
+      userId: string;
+      timestamp: string;
+    }) => void
+  ) {
+    this.socket?.on("board-deleted", callback);
+    this.addListener("board-deleted", callback);
+  }
+
+  // Invitation events
+  onBoardInvited(
+    callback: (data: {
+      boardId: string;
+      boardName: string;
+      invitedBy: string;
+      timestamp: string;
+    }) => void
+  ) {
+    this.socket?.on("board-invited", callback);
+    this.addListener("board-invited", callback);
+  }
+
+  onBoardInvitationAccepted(
+    callback: (data: {
+      boardId: string;
+      boardName: string;
+      acceptedBy: string;
+      timestamp: string;
+    }) => void
+  ) {
+    this.socket?.on("board-invitation-accepted", callback);
+    this.addListener("board-invitation-accepted", callback);
+  }
+
+  onBoardInvitationDeclined(
+    callback: (data: {
+      boardId: string;
+      boardName: string;
+      declinedBy: string;
+      timestamp: string;
+    }) => void
+  ) {
+    this.socket?.on("board-invitation-declined", callback);
+    this.addListener("board-invitation-declined", callback);
+  }
+
+  // Emit invitation events
+  emitBoardInvited(data: BoardInvitedEvent) {
+    this.socket?.emit("board-invited", data);
+  }
+
+  emitBoardInvitationAccepted(data: BoardInvitationAcceptedEvent) {
+    this.socket?.emit("board-invitation-accepted", data);
+  }
+
+  emitBoardInvitationDeclined(data: BoardInvitationDeclinedEvent) {
+    this.socket?.emit("board-invitation-declined", data);
   }
 
   // Remover listeners
@@ -180,6 +281,10 @@ class SocketService {
 
   isConnected(): boolean {
     return this.socket?.connected || false;
+  }
+
+  getSocketId(): string | undefined {
+    return this.socket?.id;
   }
 }
 

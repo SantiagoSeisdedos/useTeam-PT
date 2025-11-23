@@ -1,0 +1,349 @@
+{
+  "name": "Kanban Backlog Export",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "kanban-export",
+        "responseMode": "lastNode",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        -544,
+        112
+      ],
+      "id": "00bd9db6-604c-49fe-a72b-a099b81854ca",
+      "name": "Webhook",
+      "webhookId": "5a4fa80e-9169-4a5e-a34b-2e016a354d1a"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Recibe el payload del webhook (está en body)\nconst payload = $json.body;\n\nconsole.log(\"= = payload = =\", payload)\n\n// Validar que tasks existe\nif (!payload || !payload.tasks) {\n  throw new Error('No se encontraron tareas en el payload');\n}\n\n// Creamos un array de items a partir de tasks\nreturn payload.tasks.map((task) => ({\n  json: {\n    ...task,\n    email: payload.email,\n    timestamp: payload.timestamp,\n    totalTasks: payload.totalTasks,\n  },\n}));"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -320,
+        112
+      ],
+      "id": "68407b9f-4e07-4f11-88e6-9e95822d21fe",
+      "name": "Code"
+    },
+    {
+      "parameters": {
+        "binaryPropertyName": "=data{{ $json.data }}",
+        "options": {
+          "delimiter": ",",
+          "fileName": "kanban-backlog.csv",
+          "headerRow": true
+        }
+      },
+      "type": "n8n-nodes-base.convertToFile",
+      "typeVersion": 1.1,
+      "position": [
+        192,
+        0
+      ],
+      "id": "890ee4e1-8222-4fac-bab9-7e045fabdebe",
+      "name": "Convert to File"
+    },
+    {
+      "parameters": {
+        "fieldToSplitOut": "title",
+        "include": "allOtherFields",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitOut",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ],
+      "id": "ab6bb9c8-78d3-4fed-8a20-ef4ce8931b39",
+      "name": "Split Out"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Obtener todos los items del nodo anterior\nconst allItems = $input.all();\n\n// Validar que hay items\nif (!allItems || allItems.length === 0) {\n  throw new Error('No se recibieron tareas para procesar');\n}\n\nconsole.log(`📦 Procesando ${allItems.length} tareas`);\n\n// Extraer metadata del primer item\nconst firstTask = allItems[0].json;\nconst email = firstTask.email;\nconst timestamp = firstTask.timestamp;\nconst totalTasks = firstTask.totalTasks;\n\n// Construir resumen\nlet textContent = `📋 **REPORTE KANBAN BOARD**\\n\\n`;\ntextContent += `📧 Destinatario: ${email}\\n`;\ntextContent += `📅 Fecha de exportación: ${new Date(timestamp).toLocaleString('es-ES')}\\n`;\ntextContent += `📊 Total de tareas: ${totalTasks}\\n\\n`;\ntextContent += `---\\n\\n`;\n\n// Agrupar por columna\nconst tasksByColumn = {};\nallItems.forEach(item => {\n  const task = item.json;\n  const column = task.column;\n  if (!tasksByColumn[column]) {\n    tasksByColumn[column] = [];\n  }\n  tasksByColumn[column].push(task);\n});\n\n// Generar contenido por columna\nObject.keys(tasksByColumn).forEach(column => {\n  const tasks = tasksByColumn[column];\n  textContent += `## 📌 ${column} (${tasks.length} tareas)\\n\\n`;\n  \n  tasks.forEach((task, index) => {\n    textContent += `${index + 1}. **${task.title}**\\n`;\n    textContent += `   📝 ${task.description}\\n`;\n    textContent += `   🆔 ID: ${task.id}\\n`;\n    textContent += `   📅 Creado: ${new Date(task.fecha_creacion).toLocaleDateString('es-ES')}\\n\\n`;\n  });\n});\n\ntextContent += `---\\n`;\ntextContent += `✅ Exportación completada exitosamente`;\n\nreturn [{ json: { textContent: textContent } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -16,
+        224
+      ],
+      "id": "6195fe11-47dc-4279-8c28-a200d7dbf73e",
+      "name": "Code1"
+    },
+    {
+      "parameters": {
+        "modelId": {
+          "__rl": true,
+          "value": "gpt-3.5-turbo",
+          "mode": "list",
+          "cachedResultName": "GPT-3.5-TURBO"
+        },
+        "messages": {
+          "values": [
+            {
+              "content": "Eres un asistente experto en resúmenes de proyectos 'Kanban'. Siempre analiza los datos proporcionados en el mensaje del usuario y responde directamente con el resumen, sin pedir más info. Manténlo breve y en español. Reporta errores si no obtienes data sobre las tareas.",
+              "role": "system"
+            },
+            {
+              "content": "=Haz un resumen conciso de estos datos de tareas del Kanban:\n\n{{ $json.textContent }}\n\nIncluye: total de tareas, distribución por columna (To Do, In Progress, Done), y fechas clave. El objetivo es determinar el estado actual del proyect. Hazlo listo para enviar por email. \nFirma como \"Santiago Seisdedos\",  \"Project manager at useTeam\""
+            }
+          ]
+        },
+        "options": {
+          "maxTokens": 300,
+          "temperature": 0.2
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 1.8,
+      "position": [
+        192,
+        448
+      ],
+      "id": "c29fac52-cbfa-4eb9-b851-bfe385e35039",
+      "name": "Message a model",
+      "disabled": true
+    },
+    {
+      "parameters": {
+        "fromEmail": "noreply@kanbanflow.local",
+        "toEmail": "santiagoseisdedos@hotmail.com",
+        "subject": "=\"Resumen de Tareas Kanban - {{ $now.format('MM-DD') }}\".",
+        "html": "=<div style=\"font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #ddd; border-radius: 8px; background-color: #f9f9f9;\">\n  <h2 style=\"color: #333; text-align: center; border-bottom: 2px solid #007bff; padding-bottom: 10px;\">Resumen Generado por IA: Tablero Kanban</h2>\n  \n<div style=\"background-color: white; padding: 15px; border-radius: 5px; margin-bottom: 15px; white-space: pre-line;\">\n  {{ $json.message }}\n</div>\n\n  <p style=\"color: #666; font-style: italic; text-align: center;\">\n    <strong>Adjunto:</strong> CSV con datos crudos de las tareas (detalles completos).\n  </p>\n  \n  <hr style=\"border: none; border-top: 1px solid #eee; margin: 20px 0;\">\n  <p style=\"text-align: center; color: #888; font-size: 12px;\">\n    Generado automáticamente el {{ $now.format('DD/MM/YYYY [a las] HH:mm') }} | Project Manager at useTeam\n  </p>\n</div>\n\n",
+        "options": {
+          "appendAttribution": false,
+          "attachments": "={{Object.keys($binary)[0]}}"
+        }
+      },
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [
+        896,
+        128
+      ],
+      "id": "6a125ce6-4d41-42d2-9320-cc47b689fce4",
+      "name": "Send email",
+      "webhookId": "ded18bfe-91a9-4883-a03b-9c5610bc7863",
+      "notesInFlow": false,
+      "alwaysOutputData": false,
+      "credentials": {
+        "smtp": {
+          "id": "nqffVSAImhK9lrYB",
+          "name": "SMTP account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "aggregate": "aggregateAllItemData",
+        "options": {
+          "includeBinaries": true
+        }
+      },
+      "type": "n8n-nodes-base.aggregate",
+      "typeVersion": 1,
+      "position": [
+        368,
+        0
+      ],
+      "id": "bbd491bc-86ac-45a0-8267-cdd9a66183f6",
+      "name": "Aggregate CSV"
+    },
+    {
+      "parameters": {
+        "jsCode": "const allItems = $input.all();\nconst csvItem = allItems.find(i => i.binary);\nconst summaryItem = allItems.find(i => i.json?.message?.content);\n\nconsole.log(\"allItems:\", allItems);\nconsole.log(\"CSV item:\", csvItem);\nconsole.log(\"Summary item:\", summaryItem);\n\nreturn [\n  {\n    json: {\n      message: summaryItem?.json.message.content,\n    },\n    binary: csvItem?.binary,\n  },\n];\n\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        752,
+        128
+      ],
+      "id": "3b998891-7ffc-4f76-9d6d-5c90fc6bc271",
+      "name": "Code2"
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "combineBy": "combineByPosition",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        576,
+        128
+      ],
+      "id": "249b8d2e-5528-4a1e-82ed-079ef6926df8",
+      "name": "Merge1",
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "modelId": {
+          "__rl": true,
+          "value": "models/gemini-2.5-flash",
+          "mode": "list",
+          "cachedResultName": "models/gemini-2.5-flash"
+        },
+        "messages": {
+          "values": [
+            {
+              "content": "Eres un asistente experto en resúmenes de proyectos 'Kanban'. Siempre analiza los datos proporcionados en el mensaje del usuario y responde directamente con el resumen, sin pedir más info. Manténlo breve y en español. Reporta errores si no obtienes data sobre las tareas.",
+              "role": "model"
+            },
+            {
+              "content": "=Haz un resumen conciso de estos datos de tareas del Kanban:\n\n{{ $json.textContent }}\n\nIncluye: total de tareas, distribución por columna (To Do, In Progress, Done), y fechas clave. El objetivo es determinar el estado actual del proyect. Hazlo listo para enviar por email. \nFirma como \"Santiago Seisdedos\",  \"Project manager at useTeam\""
+            }
+          ]
+        },
+        "options": {
+          "maxOutputTokens": 1500
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.googleGemini",
+      "typeVersion": 1,
+      "position": [
+        176,
+        224
+      ],
+      "id": "b1c9b715-49cb-4897-9904-e4263a929045",
+      "name": "Message a model1",
+      "credentials": {
+        "googlePalmApi": {
+          "id": "zRc5agRam44hhJoE",
+          "name": "Google Gemini(PaLM) Api account"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Code",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code": {
+      "main": [
+        [
+          {
+            "node": "Code1",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Split Out",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Convert to File": {
+      "main": [
+        [
+          {
+            "node": "Aggregate CSV",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Split Out": {
+      "main": [
+        [
+          {
+            "node": "Convert to File",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code1": {
+      "main": [
+        [
+          {
+            "node": "Message a model1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Message a model": {
+      "main": [
+        []
+      ]
+    },
+    "Aggregate CSV": {
+      "main": [
+        [
+          {
+            "node": "Merge1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code2": {
+      "main": [
+        [
+          {
+            "node": "Send email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge1": {
+      "main": [
+        [
+          {
+            "node": "Code2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Message a model1": {
+      "main": [
+        [
+          {
+            "node": "Merge1",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "292f7b98-139b-4062-b116-f32c9559bef7",
+  "meta": {
+    "instanceId": "61afbd1d4e8bce427ab81d3ad0513de655e90ddd061f2373665c9e606b6273a4"
+  },
+  "id": "0mnYZr8rE5i3ugNK",
+  "tags": []
+}

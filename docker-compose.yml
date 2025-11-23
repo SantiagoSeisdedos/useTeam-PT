@@ -43,7 +43,9 @@ services:
       - PORT=3000
       - N8N_WEBHOOK_URL=http://n8n:5678/webhook/kanban-export
       - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
       - FRONTEND_URL=http://localhost:5173
+      - JWT_SECRET=${JWT_SECRET:-your-super-secret-jwt-key-change-this-in-production}
     depends_on:
       - mongodb
       - n8n
@@ -56,6 +58,10 @@ services:
     build:
       context: ./frontend
       dockerfile: Dockerfile
+      args:
+        - VITE_WALLETCONNECT_PROJECT_ID=${VITE_WALLETCONNECT_PROJECT_ID}
+        - VITE_API_URL=${VITE_API_URL:-http://localhost:3000}
+        - VITE_WS_URL=${VITE_WS_URL:-http://localhost:3000}
     container_name: kanban-frontend
     ports:
       - "5173:80"

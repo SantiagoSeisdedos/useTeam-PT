@@ -8,34 +8,63 @@ import {
   type DragEndEvent,
   type DragStartEvent,
 } from "@dnd-kit/core";
-import { arrayMove } from "@dnd-kit/sortable";
 import { KanbanColumn } from "./KanbanColumn";
 import { TaskCard } from "./TaskCard";
 import { TaskDialog } from "./TaskDialog";
-import { ExportButton } from "./ExportButton";
-import { AudioSettings } from "./AudioSettings";
+import { BoardSelector } from "./BoardSelector";
+import { CreateBoardDialog } from "./CreateBoardDialog";
+import { EditBoardDialog } from "./EditBoardDialog";
+import UserProfile from "./UserProfile";
 import { Button } from "./ui/button";
 import { Card, CardContent } from "./ui/card";
 import { Input } from "./ui/input";
-import { Loader2, RefreshCw, Users, Plus, Check, X } from "lucide-react";
-import { tasksApi, boardsApi } from "../services/api";
+import { useLoadingStates } from "../hooks/useLoadingStates";
+import LoadingButton from "./LoadingButton";
+import { Loader2, RefreshCw, Plus, Check, X } from "lucide-react";
 import { socketService } from "../services/socket";
 import { audioService } from "../services/audio";
 import { toast } from "sonner";
-import type { Task } from "../types";
+import { useAuth } from "../contexts/AuthContext";
+import { useBoards } from "../contexts/BoardsContext";
+import type { Task, Board, UpdateTaskDto } from "../types";
 
 export function KanbanBoard() {
-  const [tasks, setTasks] = useState<Task[]>([]);
-  const [columns, setColumns] = useState<string[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [activeTask, setActiveTask] = useState<Task | null>(null);
-  const [dialogOpen, setDialogOpen] = useState(false);
-  const [editingTask, setEditingTask] = useState<Task | null>(null);
-  const [selectedColumn, setSelectedColumn] = useState<string>("");
-  const [connectedUsers, setConnectedUsers] = useState(0);
+  const { isAuthenticated } = useAuth();
+  const { isAddingColumn: isAddingColumnLoading } = useLoadingStates();
+
+  // Usar el contexto de boards
+  const {
+    boards,
+    activeBoard,
+    tasks,
+    loading,
+    setActiveBoard,
+    createBoard,
+    updateBoard,
+    deleteBoard,
+    addColumn,
+    renameColumn,
+    deleteColumn,
+    createTask,
+    updateTask,
+    deleteTask,
+    moveTask,
+    getTasksByColumn,
+    refreshData,
+  } = useBoards();
+
+  // Estado de UI
   const [isAddingColumn, setIsAddingColumn] = useState(false);
   const [newColumnName, setNewColumnName] = useState("");
-  const [boardId, setBoardId] = useState<string>("");
+  const [createBoardDialogOpen, setCreateBoardDialogOpen] = useState(false);
+  const [editBoardDialogOpen, setEditBoardDialogOpen] = useState(false);
+  const [boardToEdit, setBoardToEdit] = useState<Board | null>(null);
+
+  // Estados para drag and drop
+  const [activeTask, setActiveTask] = useState<Task | null>(null);
+  const [isEditingTask, setIsEditingTask] = useState(false);
+  const [editingTask, setEditingTask] = useState<Task | null>(null);
+  const [selectedColumn, setSelectedColumn] = useState<string>("");
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -45,521 +74,396 @@ export function KanbanBoard() {
     })
   );
 
-  // Cargar datos iniciales
+  // Unirse al room del tablero activo cuando cambie
   useEffect(() => {
-    loadInitialData();
-  }, []);
-
-  // Configurar WebSocket
-  useEffect(() => {
-    socketService.connect();
-
-    // Listeners de WebSocket
-    socketService.onTaskCreated(({ task }) => {
-      toast.info("Nueva tarea creada", {
-        description: `${task.title} fue creada por otro usuario`,
-      });
-      audioService.play('notification'); // Sonido de notificación
-      setTasks((prev) => [...prev, task]);
-    });
-
-    socketService.onTaskUpdated((data) => {
-      setTasks((prev) =>
-        prev.map((task) =>
-          task._id === data.taskId ? { ...task, ...data.updates } : task
-        )
-      );
-    });
-
-    socketService.onTaskDeleted((data) => {
-      setTasks((prev) => prev.filter((task) => task._id !== data.taskId));
-      toast.info("Tarea eliminada por otro usuario");
-    });
-
-    socketService.onTaskMoved(() => {
-      // Recargar tareas cuando otro usuario mueve una tarea
-      loadTasks();
-    });
-
-    // Nuevo evento: recibir el total de usuarios al conectarse
-    socketService.onConnectedUsersCount((data) => {
-      setConnectedUsers(data.count);
-    });
-
-    socketService.onUserConnected((data) => {
-      setConnectedUsers(data.count);
-      toast.info("Nuevo usuario conectado", {
-        description: `Ahora hay ${data.count} usuario(s) conectado(s)`,
-        duration: 2000,
-      });
-    });
-
-    socketService.onUserDisconnected((data) => {
-      setConnectedUsers(data.count);
-    });
-
-    // Listeners de columnas
-    socketService.onColumnAdded((data) => {
-      setColumns(data.columns);
-      toast.info("Nueva columna agregada", {
-        description: `"${data.columnName}" fue creada por otro usuario`,
-      });
-      audioService.play('notification'); // Sonido de notificación
-    });
-
-    socketService.onColumnRenamed((data) => {
-      setColumns(data.columns);
-      toast.info("Columna renombrada", {
-        description: `"${data.oldName}" → "${data.newName}"`,
-      });
-    });
-
-    socketService.onColumnDeleted((data) => {
-      setColumns(data.columns);
-      toast.info("Columna eliminada", {
-        description: `"${data.columnName}" fue eliminada por otro usuario`,
-      });
-    });
-
+    if (activeBoard && socketService.isConnected()) {
+      socketService.joinBoard(activeBoard._id);
+    }
     return () => {
-      socketService.disconnect();
-    };
-  }, []);
-
-  const loadInitialData = async () => {
-    try {
-      setLoading(true);
-      const [boardsData, tasksData] = await Promise.all([
-        boardsApi.getAll(),
-        tasksApi.getAll(),
-      ]);
-
-      if (boardsData.length > 0) {
-        setBoardId(boardsData[0]._id);
-        setColumns(boardsData[0].columns);
-      } else {
-        // Columnas por defecto si no hay tableros
-        setColumns(["Por Hacer", "En Progreso", "Completado"]);
+      if (activeBoard) {
+        socketService.leaveBoard(activeBoard._id);
       }
+    };
+  }, [activeBoard]);
 
-      setTasks(tasksData);
-    } catch (error) {
-      console.error("Error cargando datos:", error);
-      toast.error("Error al cargar el tablero");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const loadTasks = async () => {
-    try {
-      const tasksData = await tasksApi.getAll();
-      setTasks(tasksData);
-    } catch (error) {
-      console.error("Error cargando tareas:", error);
-    }
-  };
-
-  const getTasksByColumn = (column: string) => {
-    return tasks
-      .filter((task) => task.column === column)
-      .sort((a, b) => a.position - b.position);
-  };
-
+  // Handlers para drag and drop
   const handleDragStart = (event: DragStartEvent) => {
-    const task = tasks.find((t) => t._id === event.active.id);
-    if (task) {
-      setActiveTask(task);
-    }
+    const { active } = event;
+    const task = tasks.find((t) => t._id === active.id);
+    setActiveTask(task || null);
   };
 
   const handleDragEnd = async (event: DragEndEvent) => {
     const { active, over } = event;
     setActiveTask(null);
 
-    if (!over) return;
+    if (!over || !activeBoard) return;
 
-    const activeTask = tasks.find((t) => t._id === active.id);
-    if (!activeTask) return;
+    const taskId = active.id as string;
+    const sourceColumn = active.data.current?.sortable?.containerId;
 
-    const sourceColumn = activeTask.column;
-    const destinationColumn = columns.find((col) =>
-      over.id === col
-        ? true
-        : getTasksByColumn(col).some((t) => t._id === over.id)
-    );
+    // Obtener la columna de destino correcta
+    let destinationColumn = over.id as string;
 
-    if (!destinationColumn) return;
-
-    const sourceColumnTasks = getTasksByColumn(sourceColumn);
-    const destinationColumnTasks =
-      sourceColumn === destinationColumn
-        ? sourceColumnTasks
-        : getTasksByColumn(destinationColumn);
-
-    const sourceIndex = sourceColumnTasks.findIndex((t) => t._id === active.id);
-    const destinationIndex =
-      over.id === destinationColumn
-        ? destinationColumnTasks.length
-        : destinationColumnTasks.findIndex((t) => t._id === over.id);
-
-    if (sourceColumn === destinationColumn) {
-      // Mover dentro de la misma columna
-      const newTasks = arrayMove(
-        sourceColumnTasks,
-        sourceIndex,
-        destinationIndex
-      );
-      const updatedTasks = tasks.map((task) => {
-        if (task.column === sourceColumn) {
-          const newPosition = newTasks.findIndex((t) => t._id === task._id);
-          return newPosition >= 0 ? { ...task, position: newPosition } : task;
-        }
-        return task;
-      });
-      setTasks(updatedTasks);
-    } else {
-      // Mover entre columnas
-      const updatedTasks = tasks.map((task) => {
-        if (task._id === active.id) {
-          return {
-            ...task,
-            column: destinationColumn,
-            position: destinationIndex,
-          };
-        }
-        return task;
-      });
-      setTasks(updatedTasks);
+    // Si over.id es el ID de una tarea, obtener la columna de esa tarea
+    if (over.data.current?.type === "task") {
+      const overTask = tasks.find((t) => t._id === over.id);
+      if (overTask) {
+        destinationColumn = overTask.column;
+      }
     }
 
-    // Llamar a la API
+    // Si aún no tenemos una columna válida, intentar obtenerla del data.current
+    if (
+      !destinationColumn ||
+      !activeBoard.columns.includes(destinationColumn)
+    ) {
+      destinationColumn = over.data.current?.column || sourceColumn;
+    }
+
+    if (sourceColumn === destinationColumn) return;
+
+    const task = tasks.find((t) => t._id === taskId);
+    if (!task) return;
+
     try {
-      await tasksApi.move(active.id as string, {
+      // Actualizar localmente primero para mejor UX
+      const sourceTasks = getTasksByColumn(sourceColumn);
+      const destinationTasks = getTasksByColumn(destinationColumn);
+      const sourceIndex = sourceTasks.findIndex((t) => t._id === taskId);
+
+      // Enviar al servidor
+      await moveTask(taskId, {
+        column: destinationColumn,
+        position: destinationTasks.length,
         sourceColumn,
-        destinationColumn,
         sourceIndex,
-        destinationIndex,
       });
 
-      // Emitir evento WebSocket
-      socketService.emitTaskMoved({
-        taskId: active.id as string,
-        sourceColumn,
-        destinationColumn,
-        sourceIndex,
-        destinationIndex,
-        userId: socketService.isConnected() ? "me" : "unknown",
-        timestamp: new Date().toISOString(),
-      });
-    } catch (error) {
-      console.error("Error moviendo tarea:", error);
+      audioService.play("task"); // Sonido al mover tarea
+    } catch {
       toast.error("Error al mover la tarea");
-      loadTasks(); // Recargar en caso de error
     }
   };
 
+  // Handlers para tareas
   const handleAddTask = (column: string) => {
-    setSelectedColumn(column);
     setEditingTask(null);
-    setDialogOpen(true);
+    setIsEditingTask(true);
+    setSelectedColumn(column);
   };
 
   const handleEditTask = (task: Task) => {
     setEditingTask(task);
+    setIsEditingTask(true);
     setSelectedColumn(task.column);
-    setDialogOpen(true);
   };
 
-  const handleSubmitTask = async (data: {
+  const handleSubmitTask = async (taskData: {
     title: string;
     description: string;
   }) => {
+    if (!activeBoard) return;
+
     try {
       if (editingTask) {
-        // Actualizar tarea existente
-        const updatedTask = await tasksApi.update(editingTask._id, data);
-        setTasks((prev) =>
-          prev.map((task) =>
-            task._id === editingTask._id ? updatedTask : task
-          )
-        );
-        socketService.emitTaskUpdated(editingTask._id, data);
-        toast.success("Tarea actualizada");
+        await updateTask(editingTask._id, taskData);
       } else {
-        // Crear nueva tarea
-        const newTask = await tasksApi.create({
-          ...data,
+        await createTask({
+          ...taskData,
           column: selectedColumn,
+          boardId: activeBoard._id,
         });
-        setTasks((prev) => [...prev, newTask]);
-        socketService.emitTaskCreated(newTask);
-        audioService.play('task'); // Sonido al crear tarea
-        toast.success("Tarea creada");
       }
-      setDialogOpen(false);
-    } catch (error) {
-      console.error("Error guardando tarea:", error);
+
+      // Cerrar el diálogo solo después de que termine la operación
+      setIsEditingTask(false);
+      setEditingTask(null);
+      audioService.play("task");
+    } catch {
       toast.error("Error al guardar la tarea");
+      // No cerrar el diálogo si hay error para que el usuario pueda intentar de nuevo
     }
   };
 
   const handleDeleteTask = async (taskId: string) => {
-    if (!confirm("¿Estás seguro de eliminar esta tarea?")) return;
+    if (!activeBoard) return;
 
     try {
-      await tasksApi.delete(taskId);
-      setTasks((prev) => prev.filter((task) => task._id !== taskId));
-      socketService.emitTaskDeleted(taskId);
-      audioService.play('delete'); // Sonido al eliminar
-      toast.success("Tarea eliminada");
-    } catch (error) {
-      console.error("Error eliminando tarea:", error);
+      await deleteTask(taskId);
+      audioService.play("delete");
+    } catch {
       toast.error("Error al eliminar la tarea");
     }
   };
 
   const handleColorChange = async (taskId: string, color: string | null) => {
+    if (!activeBoard) return;
+
     try {
-      const updatedTask = await tasksApi.update(taskId, { color });
-      setTasks((prev) =>
-        prev.map((task) => (task._id === taskId ? updatedTask : task))
-      );
-      socketService.emitTaskUpdated(taskId, { color });
-      toast.success("Color actualizado");
-    } catch (error) {
-      console.error("Error actualizando color:", error);
-      toast.error("Error al cambiar el color");
+      await updateTask(taskId, { color: color || undefined } as UpdateTaskDto);
+    } catch {
+      toast.error("Error al actualizar el color");
     }
   };
 
+  // Handlers para columnas
   const handleAddColumn = async () => {
-    if (!newColumnName.trim()) {
-      toast.error("El nombre de la columna no puede estar vacío");
-      return;
-    }
-
-    if (columns.includes(newColumnName.trim())) {
-      toast.error("Ya existe una columna con ese nombre");
-      return;
-    }
+    if (!activeBoard || !newColumnName.trim()) return;
 
     try {
-      const updatedBoard = await boardsApi.addColumn(boardId, newColumnName.trim());
-      setColumns(updatedBoard.columns);
+      await addColumn(activeBoard._id, newColumnName.trim());
       setNewColumnName("");
       setIsAddingColumn(false);
-      socketService.emitColumnAdded(newColumnName.trim(), updatedBoard.columns);
-      audioService.play('column'); // Sonido al crear columna
-      toast.success("Columna creada exitosamente");
-    } catch (error) {
-      console.error("Error agregando columna:", error);
+      audioService.play("column");
+    } catch {
       toast.error("Error al crear la columna");
     }
   };
 
   const handleRenameColumn = async (oldName: string, newName: string) => {
-    if (!newName.trim()) {
-      toast.error("El nombre de la columna no puede estar vacío");
-      return;
-    }
-
-    if (oldName === newName.trim()) {
-      return; // No cambió nada
-    }
-
-    if (columns.includes(newName.trim())) {
-      toast.error("Ya existe una columna con ese nombre");
-      return;
-    }
+    if (!activeBoard) return;
 
     try {
-      const updatedBoard = await boardsApi.renameColumn(boardId, oldName, newName.trim());
-      setColumns(updatedBoard.columns);
-      
-      // Actualizar tareas localmente
-      setTasks((prev) =>
-        prev.map((task) =>
-          task.column === oldName ? { ...task, column: newName.trim() } : task
-        )
-      );
-
-      socketService.emitColumnRenamed(oldName, newName.trim(), updatedBoard.columns);
-      toast.success(`Columna renombrada: "${oldName}" → "${newName}"`);
-    } catch (error) {
-      console.error("Error renombrando columna:", error);
+      await renameColumn(activeBoard._id, oldName, newName);
+    } catch {
       toast.error("Error al renombrar la columna");
     }
   };
 
   const handleDeleteColumn = async (columnName: string) => {
-    const tasksInColumn = getTasksByColumn(columnName).length;
-    
-    const confirmMessage =
-      tasksInColumn > 0
-        ? `¿Eliminar la columna "${columnName}" y sus ${tasksInColumn} tarea(s)?`
-        : `¿Eliminar la columna "${columnName}"?`;
-
-    if (!confirm(confirmMessage)) return;
+    if (!activeBoard) return;
 
     try {
-      const updatedBoard = await boardsApi.deleteColumn(boardId, columnName);
-      setColumns(updatedBoard.columns);
-      
-      // Eliminar tareas de esta columna localmente
-      setTasks((prev) => prev.filter((task) => task.column !== columnName));
-
-      socketService.emitColumnDeleted(columnName, updatedBoard.columns);
-      audioService.play('delete'); // Sonido al eliminar
-      toast.success(`Columna "${columnName}" eliminada`);
-    } catch (error) {
-      console.error("Error eliminando columna:", error);
+      await deleteColumn(activeBoard._id, columnName);
+      audioService.play("delete");
+    } catch {
       toast.error("Error al eliminar la columna");
     }
   };
 
-  if (loading) {
+  // Handlers para tableros
+  const handleCreateBoard = async (data: {
+    name: string;
+    columns: string[];
+  }) => {
+    try {
+      await createBoard(data);
+      setCreateBoardDialogOpen(false);
+    } catch {
+      toast.error("Error al crear el tablero");
+    }
+  };
+
+  const handleEditBoard = (board: Board) => {
+    setBoardToEdit(board);
+    setEditBoardDialogOpen(true);
+  };
+
+  const handleUpdateBoard = async (name: string) => {
+    if (!boardToEdit) return;
+
+    try {
+      await updateBoard(boardToEdit._id, { name });
+      setEditBoardDialogOpen(false);
+      setBoardToEdit(null);
+    } catch {
+      toast.error("Error al actualizar el tablero");
+    }
+  };
+
+  const handleDeleteBoard = async (board: Board) => {
+    try {
+      await deleteBoard(board._id);
+      setEditBoardDialogOpen(false);
+      setBoardToEdit(null);
+    } catch {
+      toast.error("Error al eliminar el tablero");
+    }
+  };
+
+  const handleBoardChange = (board: Board | null) => {
+    setActiveBoard(board);
+  };
+
+  if (loading && !boards.length) {
     return (
       <div className="flex items-center justify-center min-h-screen">
-        <Loader2 className="h-8 w-8 animate-spin" />
+        <div className="flex items-center gap-2">
+          <Loader2 className="h-6 w-6 animate-spin" />
+          <span>Cargando tableros...</span>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-background">
-      {/* Header */}
-      <div className="border-b">
-        <div className="container mx-auto px-4 py-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <img
-                src="/useteam_logo.svg"
-                alt="useTeam"
-                className="h-10 w-10"
-              />
-              <div>
-                <h1 className="text-2xl font-bold">Tablero Kanban</h1>
-                <p className="text-sm text-muted-foreground">
-                  Colaboración en tiempo real
-                </p>
-              </div>
+    <div className="min-h-screen bg-gray-50">
+      <div className="container mx-auto p-4">
+        {/* Header */}
+        <div className="mb-6">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-4">
+              <h1 className="text-2xl font-bold">Kanban Colaborativo</h1>
             </div>
-            <div className="flex items-center gap-3">
-              {socketService.isConnected() && connectedUsers > 0 && (
-                <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <Users className="h-4 w-4" />
-                  <span>{connectedUsers} conectado(s)</span>
-                </div>
-              )}
-              <AudioSettings />
-              <Button variant="outline" size="icon" onClick={loadTasks}>
+
+            <div className="flex items-center gap-2">
+              {/* User Profile - Unifica wallet, auth, audio y export */}
+              <UserProfile />
+
+              <Button variant="outline" size="icon" onClick={refreshData}>
                 <RefreshCw className="h-4 w-4" />
               </Button>
-              <ExportButton />
             </div>
           </div>
-        </div>
-      </div>
 
-      {/* Board */}
-      <div className="container mx-auto px-4 py-6">
-        <DndContext
-          sensors={sensors}
-          onDragStart={handleDragStart}
-          onDragEnd={handleDragEnd}
-        >
-          <div className="flex gap-4 overflow-x-auto pb-4">
-            {columns.map((column) => (
-              <KanbanColumn
-                key={column}
-                column={column}
-                tasks={getTasksByColumn(column)}
-                onAddTask={handleAddTask}
-                onEditTask={handleEditTask}
-                onDeleteTask={handleDeleteTask}
-                onColorChange={handleColorChange}
-                onRenameColumn={handleRenameColumn}
-                onDeleteColumn={handleDeleteColumn}
-              />
-            ))}
-            
-            {/* Botón para agregar columna */}
-            {isAddingColumn ? (
-              <Card className="flex-shrink-0 w-[280px]">
-                <CardContent className="p-4">
-                  <Input
-                    autoFocus
-                    placeholder="Nombre de la columna..."
-                    value={newColumnName}
-                    onChange={(e) => setNewColumnName(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") handleAddColumn();
-                      if (e.key === "Escape") {
-                        setIsAddingColumn(false);
-                        setNewColumnName("");
-                      }
-                    }}
-                    className="mb-2"
-                  />
-                  <div className="flex gap-2">
-                    <Button
-                      size="sm"
-                      onClick={handleAddColumn}
-                      className="flex-1"
-                    >
-                      <Check className="h-4 w-4 mr-1" />
-                      Crear
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => {
-                        setIsAddingColumn(false);
-                        setNewColumnName("");
-                      }}
-                    >
-                      <X className="h-4 w-4" />
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
-            ) : (
-              <Button
-                variant="outline"
-                className="flex-shrink-0 h-auto min-h-[100px] w-[280px] border-dashed hover:border-primary hover:bg-primary/5"
-                onClick={() => setIsAddingColumn(true)}
-              >
-                <div className="flex flex-col items-center gap-2 py-4">
-                  <Plus className="h-8 w-8" />
-                  <span className="font-medium">Nueva Columna</span>
-                </div>
+          {/* Board Selector */}
+          <div className="flex items-center gap-4">
+            <BoardSelector
+              boards={boards}
+              activeBoard={activeBoard}
+              onBoardChange={handleBoardChange}
+              onEditBoard={handleEditBoard}
+              onDeleteBoard={(boardId) =>
+                handleDeleteBoard(boards.find((b) => b._id === boardId)!)
+              }
+              onCreateBoard={() => setCreateBoardDialogOpen(true)}
+            />
+            {isAuthenticated && (
+              <Button onClick={() => setCreateBoardDialogOpen(true)}>
+                <Plus className="h-4 w-4 mr-2" />
+                Nuevo Tablero
               </Button>
             )}
           </div>
+        </div>
 
-          <DragOverlay>
-            {activeTask ? (
-              <TaskCard
-                task={activeTask}
-                onEdit={() => {}}
-                onDelete={() => {}}
-                onColorChange={() => {}}
-              />
-            ) : null}
-          </DragOverlay>
-        </DndContext>
+        {/* Board Content */}
+        {activeBoard ? (
+          <DndContext
+            sensors={sensors}
+            onDragStart={handleDragStart}
+            onDragEnd={handleDragEnd}
+          >
+            <div className="flex gap-4 overflow-x-auto pb-4">
+              {activeBoard.columns.map((column) => (
+                <KanbanColumn
+                  key={column}
+                  column={column}
+                  tasks={getTasksByColumn(column)}
+                  onAddTask={handleAddTask}
+                  onEditTask={handleEditTask}
+                  onDeleteTask={handleDeleteTask}
+                  onColorChange={handleColorChange}
+                  onRenameColumn={handleRenameColumn}
+                  onDeleteColumn={handleDeleteColumn}
+                />
+              ))}
+
+              {/* Botón para agregar columna */}
+              {isAddingColumn ? (
+                <Card className="flex-shrink-0 w-[280px]">
+                  <CardContent className="p-4">
+                    <Input
+                      autoFocus
+                      placeholder="Nombre de la columna..."
+                      value={newColumnName}
+                      onChange={(e) => setNewColumnName(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") handleAddColumn();
+                        if (e.key === "Escape") {
+                          setIsAddingColumn(false);
+                          setNewColumnName("");
+                        }
+                      }}
+                      className="mb-2"
+                    />
+                    <div className="flex gap-2">
+                      <LoadingButton
+                        size="sm"
+                        onClick={handleAddColumn}
+                        className="flex-1"
+                        loading={isAddingColumnLoading}
+                        loadingText="Creando..."
+                      >
+                        <Check className="h-4 w-4 mr-1" />
+                        Crear
+                      </LoadingButton>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => {
+                          setIsAddingColumn(false);
+                          setNewColumnName("");
+                        }}
+                      >
+                        <X className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+              ) : (
+                <Button
+                  variant="outline"
+                  className="flex-shrink-0 h-auto min-h-[100px] w-[280px] border-dashed hover:border-primary hover:bg-primary/5"
+                  onClick={() => setIsAddingColumn(true)}
+                >
+                  <div className="flex flex-col items-center gap-2 py-4">
+                    <Plus className="h-8 w-8" />
+                    <span className="font-medium">Nueva Columna</span>
+                  </div>
+                </Button>
+              )}
+            </div>
+
+            <DragOverlay>
+              {activeTask ? (
+                <div className="relative">
+                  <TaskCard
+                    task={activeTask}
+                    onEdit={() => {}}
+                    onDelete={() => {}}
+                    onColorChange={() => {}}
+                  />
+                </div>
+              ) : null}
+            </DragOverlay>
+          </DndContext>
+        ) : (
+          <div className="flex flex-col items-center justify-center min-h-[400px] text-center">
+            <div className="mb-6">
+              <h2 className="text-xl font-semibold mb-2">
+                No hay tableros disponibles
+              </h2>
+              <p className="text-muted-foreground mb-6">
+                Conecta tu wallet para crear un tablero privado o espera a que
+                se cree uno público
+              </p>
+            </div>
+          </div>
+        )}
+
+        {/* Dialogs */}
+        <TaskDialog
+          open={isEditingTask}
+          onOpenChange={setIsEditingTask}
+          task={editingTask || undefined}
+          onSubmit={handleSubmitTask}
+        />
+
+        <CreateBoardDialog
+          open={createBoardDialogOpen}
+          onOpenChange={setCreateBoardDialogOpen}
+          onSubmit={handleCreateBoard}
+        />
+
+        <EditBoardDialog
+          open={editBoardDialogOpen}
+          onOpenChange={setEditBoardDialogOpen}
+          board={boardToEdit}
+          onSubmit={handleUpdateBoard}
+        />
       </div>
-
-      {/* Task Dialog */}
-      <TaskDialog
-        open={dialogOpen}
-        onOpenChange={setDialogOpen}
-        onSubmit={handleSubmitTask}
-        task={editingTask || undefined}
-        column={selectedColumn}
-        allTasks={tasks}
-      />
     </div>
   );
 }

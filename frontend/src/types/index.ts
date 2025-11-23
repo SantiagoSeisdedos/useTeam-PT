@@ -4,6 +4,7 @@ export interface Task {
   description: string;
   column: string;
   position: number;
+  boardId: string;
   color?: string | null;
   createdAt: string;
   updatedAt: string;
@@ -15,14 +16,19 @@ export interface Board {
   columns: string[];
   createdAt: string;
   updatedAt: string;
+  isPublic: boolean;
+  owner: User | null;
+  sharedWith?: User[];
 }
 
 export interface CreateTaskDto {
   title: string;
   description: string;
   column: string;
+  boardId: string;
   position?: number;
   color?: string | null;
+  userId?: string;
 }
 
 export interface UpdateTaskDto {
@@ -31,6 +37,7 @@ export interface UpdateTaskDto {
   column?: string;
   position?: number;
   color?: string | null;
+  userId?: string;
 }
 
 export interface MoveTaskDto {
@@ -53,6 +60,7 @@ export interface SocketTaskEvent {
 
 export interface SocketTaskUpdatedEvent {
   taskId: string;
+  boardId: string;
   updates: Partial<Task>;
   userId: string;
   timestamp: string;
@@ -60,12 +68,14 @@ export interface SocketTaskUpdatedEvent {
 
 export interface SocketTaskDeletedEvent {
   taskId: string;
+  boardId: string;
   userId: string;
   timestamp: string;
 }
 
 export interface SocketTaskMovedEvent {
   taskId: string;
+  boardId: string;
   sourceColumn: string;
   destinationColumn: string;
   sourceIndex: number;
@@ -74,3 +84,72 @@ export interface SocketTaskMovedEvent {
   timestamp: string;
 }
 
+export interface User {
+  _id: string;
+  walletAddress: string;
+  username?: string;
+  email?: string;
+  createdAt: string;
+  updatedAt?: string;
+}
+
+export interface SocketBoardUpdatedEvent {
+  boardId: string;
+  name: string;
+  userId: string;
+  timestamp: string;
+}
+
+export interface SocketBoardDeletedEvent {
+  boardId: string;
+  userId: string;
+  timestamp: string;
+}
+
+// Eventos de columnas
+export interface ColumnAddedEvent {
+  boardId: string;
+  columnName: string;
+  columns: string[];
+  userId: string;
+  timestamp: string;
+}
+
+export interface ColumnRenamedEvent {
+  boardId: string;
+  oldName: string;
+  newName: string;
+  columns: string[];
+  userId: string;
+  timestamp: string;
+}
+
+export interface ColumnDeletedEvent {
+  boardId: string;
+  columnName: string;
+  columns: string[];
+  userId: string;
+  timestamp: string;
+}
+
+// Eventos de invitaciones
+export interface BoardInvitedEvent {
+  boardId: string;
+  boardName: string;
+  invitedBy: string;
+  invitedUser: string;
+}
+
+export interface BoardInvitationAcceptedEvent {
+  boardId: string;
+  boardName: string;
+  acceptedBy: string;
+  ownerId: string;
+}
+
+export interface BoardInvitationDeclinedEvent {
+  boardId: string;
+  boardName: string;
+  declinedBy: string;
+  ownerId: string;
+}

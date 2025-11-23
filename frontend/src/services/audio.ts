@@ -3,6 +3,8 @@
  * Genera sonidos sintéticos usando Web Audio API
  */
 
+import { toast } from "sonner";
+
 type SoundType = "success" | "notification" | "column" | "task" | "delete";
 
 interface AudioSettings {
@@ -67,8 +69,8 @@ class AudioService {
           this.playDelete();
           break;
       }
-    } catch (error) {
-      console.error("Error reproduciendo sonido:", error);
+    } catch {
+      toast.error("Error al reproducir el sonido");
     }
   }
 
@@ -236,16 +238,16 @@ class AudioService {
       if (saved) {
         this.settings = JSON.parse(saved);
       }
-    } catch (error) {
-      console.error("Error cargando configuración de audio:", error);
+    } catch {
+      toast.error("Error al cargar la configuración de audio");
     }
   }
 
   private saveSettings() {
     try {
       localStorage.setItem(AUDIO_SETTINGS_KEY, JSON.stringify(this.settings));
-    } catch (error) {
-      console.error("Error guardando configuración de audio:", error);
+    } catch {
+      toast.error("Error al guardar la configuración de audio");
     }
   }
 }

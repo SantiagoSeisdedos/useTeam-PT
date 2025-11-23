@@ -33,4 +33,8 @@ async function bootstrap() {
   logger.log(`🌐 CORS habilitado para: ${frontendUrl}`);
   logger.log(`🔌 WebSocket disponible en ws://localhost:${port}`);
 }
-bootstrap();
+
+bootstrap().catch((error) => {
+  console.error('Error al iniciar la aplicación:', (error as Error).message);
+  process.exit(1);
+});

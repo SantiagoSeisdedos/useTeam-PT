@@ -1,12 +1,16 @@
-import { KanbanBoard } from './components/KanbanBoard';
-import { Toaster } from './components/ui/sonner';
+import { KanbanBoard } from "./components/KanbanBoard";
+import { Toaster } from "./components/ui/sonner";
+import { AuthProvider } from "./contexts/AuthContext";
+import { BoardsProvider } from "./contexts/BoardsContext";
 
 function App() {
   return (
-    <>
-      <KanbanBoard />
-      <Toaster />
-    </>
+    <AuthProvider>
+      <BoardsProvider>
+        <KanbanBoard />
+        <Toaster />
+      </BoardsProvider>
+    </AuthProvider>
   );
 }
 

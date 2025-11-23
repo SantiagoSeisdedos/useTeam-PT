@@ -20,4 +20,8 @@ export class UpdateTaskDto {
   @IsString()
   @IsOptional()
   color?: string | null;
+
+  @IsString()
+  @IsOptional()
+  userId?: string;
 }

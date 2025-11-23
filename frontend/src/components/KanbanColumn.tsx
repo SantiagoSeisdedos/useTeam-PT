@@ -13,9 +13,11 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "./ui/dropdown-menu";
-import { Plus, MoreVertical, Trash2 } from "lucide-react";
+import { Plus, MoreVertical, Trash2, Loader2 } from "lucide-react";
 import type { Task } from "../types";
 import { useState } from "react";
+import { useLoadingStates } from "../hooks/useLoadingStates";
+import LoadingSpinner from "./LoadingSpinner";
 
 interface KanbanColumnProps {
   column: string;
@@ -38,16 +40,40 @@ export function KanbanColumn({
   onRenameColumn,
   onDeleteColumn,
 }: KanbanColumnProps) {
-  const { setNodeRef, isOver } = useDroppable({ id: column });
+  const { setNodeRef, isOver } = useDroppable({ 
+    id: column,
+    data: {
+      type: 'column',
+      column: column
+    }
+  });
   const [isRenaming, setIsRenaming] = useState(false);
   const [newColumnName, setNewColumnName] = useState(column);
+  // Pasar el nombre de la columna para saber si ESTA columna específica está en loading
+  const { isDeletingColumn, isRenamingColumn } = useLoadingStates(undefined, column);
 
   return (
     <Card
-      className={`flex-1 min-w-[280px] max-w-[350px] flex flex-col transition-all ${
+      className={`flex-1 min-w-[280px] max-w-[350px] flex flex-col transition-all relative ${
         isOver ? "ring-2 ring-primary bg-primary/5 scale-[1.02]" : ""
-      }`}
+      } ${(isDeletingColumn || isRenamingColumn) ? "opacity-50" : ""}`}
     >
+      {isDeletingColumn && (
+        <div className="absolute inset-0 bg-background/80 rounded-lg flex items-center justify-center z-50" style={{ borderRadius: 'inherit' }}>
+          <div className="flex flex-col items-center gap-2">
+            <LoadingSpinner size="md" />
+            <span className="text-xs text-muted-foreground">Eliminando columna...</span>
+          </div>
+        </div>
+      )}
+      {isRenamingColumn && !isDeletingColumn && (
+        <div className="absolute inset-0 bg-background/80 rounded-lg flex items-center justify-center z-50" style={{ borderRadius: 'inherit' }}>
+          <div className="flex flex-col items-center gap-2">
+            <LoadingSpinner size="md" />
+            <span className="text-xs text-muted-foreground">Renombrando columna...</span>
+          </div>
+        </div>
+      )}
       <CardHeader className="p-4">
         <div className="flex items-center justify-between gap-2">
           {isRenaming ? (
@@ -57,7 +83,7 @@ export function KanbanColumn({
                 value={newColumnName}
                 onChange={(e) => setNewColumnName(e.target.value)}
                 onKeyDown={(e) => {
-                  if (e.key === "Enter") {
+                  if (e.key === "Enter" && !isRenamingColumn) {
                     onRenameColumn(column, newColumnName);
                     setIsRenaming(false);
                   }
@@ -67,11 +93,17 @@ export function KanbanColumn({
                   }
                 }}
                 onBlur={() => {
-                  setNewColumnName(column);
-                  setIsRenaming(false);
+                  if (!isRenamingColumn) {
+                    setNewColumnName(column);
+                    setIsRenaming(false);
+                  }
                 }}
                 className="h-8 text-base font-semibold"
+                disabled={isRenamingColumn}
               />
+              {isRenamingColumn && (
+                <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+              )}
             </div>
           ) : (
             <button
@@ -107,9 +139,19 @@ export function KanbanColumn({
                 <DropdownMenuItem
                   className="text-destructive focus:text-destructive cursor-pointer"
                   onClick={() => onDeleteColumn(column)}
+                  disabled={isDeletingColumn}
                 >
-                  <Trash2 className="h-4 w-4 mr-2" />
-                  Eliminar columna
+                  {isDeletingColumn ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Eliminando...
+                    </>
+                  ) : (
+                    <>
+                      <Trash2 className="h-4 w-4 mr-2" />
+                      Eliminar columna
+                    </>
+                  )}
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
@@ -128,9 +170,9 @@ export function KanbanColumn({
               isOver ? "bg-primary/10" : ""
             }`}
           >
-            {tasks.map((task) => (
+            {tasks.map((task, index) => (
               <TaskCard
-                key={task._id}
+                key={task._id + index.toString()}
                 task={task}
                 onEdit={onEditTask}
                 onDelete={onDeleteTask}

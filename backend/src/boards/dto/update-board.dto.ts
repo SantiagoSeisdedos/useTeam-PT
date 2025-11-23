@@ -1,4 +1,4 @@
-import { IsString, IsOptional, IsArray } from 'class-validator';
+import { IsString, IsOptional, IsArray, IsBoolean } from 'class-validator';
 
 export class UpdateBoardDto {
   @IsString()
@@ -9,4 +9,8 @@ export class UpdateBoardDto {
   @IsString({ each: true })
   @IsOptional()
   columns?: string[];
+
+  @IsBoolean()
+  @IsOptional()
+  isPublic?: boolean;
 }

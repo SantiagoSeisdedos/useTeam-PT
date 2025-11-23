@@ -1,10 +1,15 @@
-import { Controller, Post, Body } from '@nestjs/common';
+import { Controller, Post, Body, Get } from '@nestjs/common';
 import { AiService } from './ai.service';
 import { ImproveDescriptionDto } from './dto/improve-description.dto';
 
 @Controller('api/ai')
 export class AiController {
   constructor(private readonly aiService: AiService) {}
+
+  @Get('status')
+  getStatus() {
+    return this.aiService.getProvidersStatus();
+  }
 
   @Post('improve-description')
   async improveDescription(@Body() dto: ImproveDescriptionDto) {

@@ -1,0 +1,260 @@
+{
+  "name": "MCP Server Agent",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "improve-description",
+        "responseMode": "lastNode",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        -784,
+        -112
+      ],
+      "id": "88c6faff-9c47-47c8-989b-eea52a4aa25b",
+      "name": "Webhook",
+      "webhookId": "cfedd630-4fbf-43a0-b48f-0b567e9a060b"
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.body.mode }}",
+                    "rightValue": "simple",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "3604b332-f039-4d1f-9d55-314f3f451ea3"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Simple Mode"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "0f40c0e7-0faf-4dce-960a-d4e376efe19c",
+                    "leftValue": "={{ $json.body.mode }}",
+                    "rightValue": "context",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Context Mode"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.3,
+      "position": [
+        -544,
+        -112
+      ],
+      "id": "2d275f45-49ac-4022-b260-291ba7951be9",
+      "name": "Switch"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://host.docker.internal:11434/api/generate",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"model\": \"llama3.2:3b-instruct-q4_K_M\",\n  \"prompt\": \"Eres un asistente experto en mejorar descripciones de tareas de un tablero Kanban.\\n\\nTu tarea: Mejorar SOLO la gramática, ortografía y redacción de la siguiente descripción de tarea, manteniendo el mismo significado y longitud similar.\\n\\nTAREA: \\\"{{ $json.body.taskTitle }}\\\"\\nDESCRIPCIÓN ACTUAL: \\\"{{ $json.body.currentDescription }}\\\"\\n\\nREGLAS:\\n- Mantén el mismo significado\\n- Corrige errores gramaticales y ortográficos\\n- Mejora la claridad y profesionalismo\\n- NO agregues información nueva\\n- NO cambies el propósito de la tarea\\n- Responde SOLO con la descripción mejorada, sin repetir reglas ni agregar texto extra.\",\n  \"stream\": false,\n  \"num_predict\": 150\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -336,
+        -288
+      ],
+      "id": "8f1fd605-1d93-4160-86f8-aa23d70fc726",
+      "name": "Generate Simple Task"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://host.docker.internal:11434/api/generate",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"model\": \"gemma3:latest\",\n  \"prompt\": \"Eres un asistente experto en gestión de proyectos y tableros Kanban.\\n\\nCONTEXTO DEL PROYECTO:\\n{{ $json.body.contextTasks }}\\n\\nTAREA ACTUAL A MEJORAR:\\nTítulo: \\\"{{ $json.body.taskTitle }}\\\"\\nDescripción actual: \\\"{{ $json.body.currentDescription }}\\\"\\n\\nTu tarea: Mejorar la descripción considerando:\\n1. Gramática, ortografía y redacción profesional\\n2. Relación con otras tareas del proyecto\\n3. Claridad de objetivos y criterios de aceptación\\n4. Dependencias o conexiones con otras tareas (si aplica)\\n5. Contexto del proyecto para hacer la descripción más útil\\n\\nREGLAS:\\n- Mantén el significado original\\n- Mejora claridad y profesionalismo\\n- Si hay relación con otras tareas, menciónalo brevemente\\n- Mantén la descripción concisa (máximo 2-3 líneas más que la original)\\n- Responde SOLO con la descripción mejorada, sin explicaciones adicionales\\n\\nDESCRIPCIÓN MEJORADA:\",\n  \"stream\": false,\n  \"num_predict\": 300\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -336,
+        -16
+      ],
+      "id": "8facba6c-b07e-444f-927b-c681097060ae",
+      "name": "Generate Contextual Task"
+    },
+    {
+      "parameters": {
+        "jsCode": "return { mode: \"simple\", taskTitle: \"aser autenticasion\", currentDescription: \"nesesitamos crear un sistem de autenticacion para que los usaers puedan guardar sus datos y preferencias\" };\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -736,
+        -288
+      ],
+      "id": "2157415d-2751-4635-b919-dd91b3246df8",
+      "name": "Mock for \"simple\" mode",
+      "disabled": true
+    },
+    {
+      "parameters": {
+        "jsCode": "return {\n  mode: \"context\",\n  taskTitle: \"Desplegar la App de Gestión de Usuarios (v0.1)\",\n  currentDescription: \"Usar servicio de deployment para la app\",\n  contextTasks: [\n    {\n      title: \"Configuración Inicial: Base de Datos de Usuarios\",\n      description:\n        \"Establecer la conexión con **MongoDB Atlas** y definir el **esquema** para la colección de 'usuarios' (campos: nombre, email, password_hash, rol).\",\n      column: \"Done\",\n    },\n    {\n      title: \"Implementar Sistema de Autenticación (Login/Registro)\",\n      description:\n        \"Crear los **endpoints API** para registro (POST /api/auth/register) y login (POST /api/auth/login), incluyendo **validación de datos** y uso de **JWT** para sesiones.\",\n      column: \"In Progress\",\n    },\n    {\n      title: \"Pruebas Unitarias de Backend\",\n      description:\n        \"Escribir pruebas que cubran los casos de uso básicos de la **API de Usuarios** (CRUD: Crear, Leer, Actualizar, Eliminar) y los flujos de **autenticación**.\",\n      column: \"To Do\",\n    },\n  ],\n};\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -752,
+        64
+      ],
+      "id": "96a59565-8e66-4b82-ae96-bd2d1a443b26",
+      "name": "Mock for \"context\" mode",
+      "disabled": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// Input: $input.all() o $json.contextTasks\nconst contextTasks = $json.contextTasks || [];\n\nconst tasksByColumn = contextTasks.reduce((acc, task) => {\n  if (!acc[task.column]) {\n    acc[task.column] = [];\n  }\n  acc[task.column].push(task);\n  return acc;\n}, {});\n\nlet summary = '';\nObject.entries(tasksByColumn).forEach(([column, columnTasks]) => {\n  summary += `\\n${column} (${columnTasks.length} tareas):\\n`;\n  columnTasks.slice(0, 5).forEach((task) => {\n    summary += `  - ${task.title}\\n`;\n  });\n  if (columnTasks.length > 5) {\n    summary += `  ... y ${columnTasks.length - 5} más\\n`;\n  }\n});\n\n// Output: Agrega el summary al JSON\nreturn {\n  ...$json,\n  contextSummary: summary\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -336,
+        192
+      ],
+      "id": "bc057a53-0e44-4bd6-bb3b-05793a20f650",
+      "name": "Code in JavaScript",
+      "disabled": true
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Switch",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Switch": {
+      "main": [
+        [
+          {
+            "node": "Generate Simple Task",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Generate Contextual Task",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "Mock for \"simple\" mode": {
+      "main": [
+        [
+          {
+            "node": "Switch",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mock for \"context\" mode": {
+      "main": [
+        [
+          {
+            "node": "Switch",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate Contextual Task": {
+      "main": [
+        []
+      ]
+    },
+    "Code in JavaScript": {
+      "main": [
+        []
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "47b42a8a-6c89-4e80-9ebe-8230b5face8b",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "10b60dc2c9c95d7b63613ff4c930517bbccae1c989213105fb18e9556f00274c"
+  },
+  "id": "9gepXBdEXevgV30h",
+  "tags": []
+}
